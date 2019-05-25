@@ -1,0 +1,3 @@
+[Project]
+Name=dbus
+Manager=KDevCMakeManager
