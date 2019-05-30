@@ -1,196 +1,41 @@
 #include <iostream>
 
 #include <sys/types.h> 
-#include <sys/socket.h> 
-#include <sys/un.h>
-#include <unistd.h>
-#include <netdb.h>
-#include <fcntl.h>
 
-#include <cstdint>
-#include <variant>
-#include <utility>
-#include <string>
+
+#include <netdb.h>
+
 #include <vector>
 #include <fstream>
 #include <sstream>
 
 
-enum class DBUS_TYPE : uint8_t
-{
-    ARRAY         ='a',
-    BOOLEAN       ='b',
-    BYTE          ='y',
-    DOUBLE        ='d',
-    INT16         ='n',
-    UINT16        ='q',
-    INT32         ='i',
-    UINT32        ='u',
-    INT64         ='x',
-    UINT64        ='t',
-    PATH          ='o',
-    SIGNATURE     ='g',
-    STRING        ='s',
-    UNIX_FD       ='h',
-    VARIANT       ='v',
-    STRUCT_BEGIN  ='(',
-    STRUCT_END    =')',
-    DICT_BEGIN    ='{',
-    DICT_END      ='}'
-};
+#include "DBusConnection.h"
 
-
-enum class MESSAGE_TYPE : uint8_t
-{
-    INVALID       = 0,
-    METHOD_CALL   = 1,
-    METHOD_RETURN = 2,
-    ERROR         = 3, 
-    SIGNAL        = 4
-};
-
-
-enum class ENDIANNESS : uint8_t
-{
-    LITTLE ='l',
-    BIG    ='B'
-};
-
-
-struct ObjectPath
-{
-    ObjectPath(std::string const& path) : value(path) { };
-    std::string value;
-};
-
-
-struct Signature
-{
-    Signature(std::string const& signature) : value(signature) { };
-    std::string value;
-};
-
-enum class FIELD : uint8_t
-{
-    INVALID      = 0,
-    PATH         = 1,
-    INTERFACE    = 2,
-    MEMBER       = 3,
-    ERROR_NAME   = 4,
-    REPLY_SERIAL = 5,
-    DESTINATION  = 6,
-    SENDER       = 7,
-    SIGNATURE    = 8,
-    UNIX_FDS     = 9
-};
-
-struct Header
-{
-    ENDIANNESS endianness{ENDIANNESS::LITTLE};
-    MESSAGE_TYPE type;
-    uint8_t flags{0};
-    uint8_t version{1};
-    uint32_t size;
-    uint32_t serial{1};
-    uint32_t fields_size;
-} __attribute__ ((packed));
-
-typedef std::vector<std::pair<FIELD, std::variant<std::string, uint32_t, ObjectPath, Signature>>> HeaderFields;
+using namespace dbus;
 
 
 int main(int argc, char **argv) 
 {
-    int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (sockfd < 0)
+    DBusConnection bus;
+    DBusError err = bus.connect(DBusConnection::BUS_SYSTEM);
+    if (err)
     {
-        perror("socket()");
-        return -1;
+        std::cout << err.what() << std::endl;
+        return err;
     }
     
-    constexpr struct sockaddr_un const SYSTEM_BUS{AF_UNIX, "/var/run/dbus/system_bus_socket"};
-    //constexpr struct sockaddr_un const USER_BUS{AF_UNIX, "/run/user/1000/bus"};
     
-    int c = connect(sockfd, (struct sockaddr*)&SYSTEM_BUS, sizeof(struct sockaddr_un));
-    if (c < 0)
-    {
-        perror("connect()");
-        return -1;
-    }
-    
-    int flags = fcntl(sockfd, F_GETFL, 0);
-    fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
-    
+    int sockfd;
     // authentication
     {
-        write(sockfd, "\0", 1);
-        
-        std::string ASK_AUTH("AUTH\r\n");
-        int w = write(sockfd, ASK_AUTH.c_str(), ASK_AUTH.size());
-        if (w < 0)
-        {
-            perror("write AUTH");
-            return -1;
-        }
-        
-        char buffer[4096];
-        for (int32_t i=0; i<100; ++i)
-        {
-            int r = read(sockfd, buffer, 4096);
-            if (r < 0)
-            {
-                usleep(1000 * 10);
-                continue;
-            }
-            break;
-        }
-        
-        printf("AUTH answer: %s\n", buffer);
-        
-        // create UID string to authenticate
-        std::stringstream ss;
-        ss << "AUTH EXTERNAL ";
-        for (auto i : std::to_string(getuid()))
-        {
-            ss << std::hex << int(i);
-        }
-        ss << "\r\n";
-        std::cout << ss.str() << std::endl;
-        
-        w = write(sockfd, ss.str().c_str(), ss.str().size());
-        for (int32_t i=0; i<100; ++i)
-        {
-            int r = read(sockfd, buffer, 4096);
-            if (r < 0)
-            {
-                usleep(1000 * 10);
-                continue;
-            }
-            break;
-        }
-        printf("AUTH EXTERNAL answer: %s\n", buffer);
-        
-        std::string NEGO_FD("NEGOTIATE_UNIX_FD\r\n");
-        w = write(sockfd, NEGO_FD.c_str(), NEGO_FD.size());
-        memset(buffer, 0, 4096);
-        for (int32_t i=0; i<100; ++i)
-        {
-            int r = read(sockfd, buffer, 4096);
-            if (r < 0)
-            {
-                usleep(1000 * 10);
-                continue;
-            }
-            break;
-        }
-        printf("NEGOCIATE_UNIX_FD answer: %s\n", buffer);
-        
-        std::string BEGIN("BEGIN\r\n");
-        w = write(sockfd, BEGIN.c_str(), BEGIN.size());
+
         
         //return 0;
     }
     
     // call Hello
+    /*
     Header header{ENDIANNESS::LITTLE, MESSAGE_TYPE::METHOD_CALL, 
         0, 1, 0, 1, 0};
       
@@ -341,7 +186,7 @@ int main(int argc, char **argv)
     }
     
     printf("receive an answer with an array of %d bytes\n", replyHeader.fields_size);
-    
+    */
         
     return 0;
 }
