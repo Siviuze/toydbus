@@ -11,6 +11,7 @@
 
 
 #include "DBusConnection.h"
+#include "DBusMessage.h"
 
 using namespace dbus;
 
@@ -25,8 +26,6 @@ int main(int argc, char **argv)
         return err;
     }
     
-    
-    int sockfd;
     // authentication
     {
 
@@ -36,35 +35,6 @@ int main(int argc, char **argv)
     
     // call Hello
     /*
-    Header header{ENDIANNESS::LITTLE, MESSAGE_TYPE::METHOD_CALL, 
-        0, 1, 0, 1, 0};
-      
-    HeaderFields fields
-    {
-        {FIELD::DESTINATION, "org.freedesktop.DBus"}, 
-        {FIELD::PATH, ObjectPath("/org/freedesktop/DBus")}, 
-        {FIELD::INTERFACE, "org.freedesktop.DBus"}, 
-        {FIELD::MEMBER, "Hello"},
-    };
-    
-    std::vector<uint8_t> msg;
-    msg.push_back(static_cast<uint8_t>(header.endianness));
-    msg.push_back(static_cast<uint8_t>(header.type));
-    msg.push_back(static_cast<uint8_t>(header.flags));
-    msg.push_back(static_cast<uint8_t>(header.version));
-    
-    // body size
-    msg.push_back((header.size & 0x000000FF) >> 0);
-    msg.push_back((header.size & 0x0000FF00) >> 8);
-    msg.push_back((header.size & 0x00FF0000) >> 16);
-    msg.push_back((header.size & 0xFF000000) >> 24);
-    
-    // serial
-    msg.push_back((header.serial & 0x000000FF) >> 0);
-    msg.push_back((header.serial & 0x0000FF00) >> 8);
-    msg.push_back((header.serial & 0x00FF0000) >> 16);
-    msg.push_back((header.serial & 0xFF000000) >> 24);
-    
     // fields size 
     msg.push_back(0);
     msg.push_back(0);

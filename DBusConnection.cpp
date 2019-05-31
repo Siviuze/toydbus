@@ -138,7 +138,79 @@ namespace dbus
             return err;
         }
         
+        //-------- Send Hello() and get our unique name --------//
+        DBusMessage hello;
+        hello.prepareCall("org.freedesktop.DBus",
+                          "/org/freedesktop/DBus",
+                          "org.freedesktop.DBus",
+                          "Hello");
+        
+        DBusMessage uniqueName;
+        err = send(std::move(hello));
+        if (err)
+        {
+            return err;
+        }
+        err = recv(uniqueName, 2000ms);
+        return err;
+    }
+    
+    
+    DBusError DBusConnection::recv(DBusMessage& msg, milliseconds timeout)
+    {
+        // Start with fixed length header part.
+        DBusError err = readData(&msg.header_, sizeof(struct Header), timeout);
+        if (err)
+        {
+            return err;
+        }
+        
+        // Next read header fields.
+        std::vector<uint8_t> msgFields(msg.header_.fields_size);
+        err = readData(msgFields.data(), msgFields.size(), timeout);
+        if (err)
+        {
+            return err;
+        }
+
+        // Read message body. 
+        msg.body_.resize(msg.header_.size);
+        err = readData(msg.body_.data(), msg.body_.size(), timeout);
+        if (err)
+        {
+            return err;
+        }
+        
+        //TODO parse msgFields to populate reply fields member.
         return ESUCCESS;
+    }
+    
+    
+    DBusError DBusConnection::send(DBusMessage&& msg)
+    {
+        if (not name_.empty())
+        {
+            // Add sender filed with our name if we know it (if not, probable the Hello() message).
+            msg.fields_.value.push_back({FIELD::SENDER, {name_}});
+        }
+        
+        std::vector<uint8_t> fieldsBuffer;
+        fieldsBuffer.reserve(4096);
+        //TODO serialize fields
+        
+        // Update header sizes.
+        msg.header_.size = msg.body_.size();
+        msg.header_.fields_size = fieldsBuffer.size();
+        
+        // serialize header
+        std::vector<uint8_t> headerBuffer;
+        headerBuffer.reserve(4096);
+        uint8_t const* header_ptr = reinterpret_cast<uint8_t const*>(&msg.header_); 
+        headerBuffer.insert(headerBuffer.begin(), header_ptr, header_ptr+sizeof(struct Header));
+        headerBuffer.insert(headerBuffer.end(), fieldsBuffer.begin(), fieldsBuffer.end());
+        
+        // Send message.
+        return writeData(headerBuffer.data(), headerBuffer.size(), 100ms);
     }
     
     
@@ -243,5 +315,75 @@ namespace dbus
                 return ESUCCESS;
             }
         }
+    }
+    
+    
+    DBusError DBusConnection::readData(void* data, uint32_t data_size, milliseconds timeout)
+    {
+        auto start_timestamp = steady_clock::now();
+        
+        uint32_t to_read = data_size;
+        uint32_t position = 0;
+        uint8_t* buffer = reinterpret_cast<uint8_t*>(data);
+        while (to_read > 0)
+        {
+            auto now = steady_clock::now();
+            milliseconds spent = duration_cast<milliseconds>(now - start_timestamp);
+            if ((timeout - spent) < 0ms)
+            {
+                return EERROR("timeout");
+            }
+            
+            int r = read(fd_, buffer + position, to_read);
+            if (r < 0)
+            {
+                if (errno == EAGAIN)
+                {
+                    usleep(1000);
+                    continue;
+                }
+                return EERROR(strerror(errno));
+            }
+            
+            to_read -= r;
+            position += r;
+        }
+        
+        return ESUCCESS;
+    }
+    
+    
+    DBusError DBusConnection::writeData(void const* data, uint32_t data_size, milliseconds timeout)
+    {
+        auto start_timestamp = steady_clock::now();
+        
+        uint32_t to_write = data_size;
+        uint32_t position = 0;
+        uint8_t const* buffer = reinterpret_cast<uint8_t const*>(data);
+        while (to_write > 0)
+        {
+            auto now = steady_clock::now();
+            milliseconds spent = duration_cast<milliseconds>(now - start_timestamp);
+            if ((timeout - spent) < 0ms)
+            {
+                return EERROR("timeout");
+            }
+            
+            int r = write(fd_, buffer + position, to_write);
+            if (r < 0)
+            {
+                if (errno == EAGAIN)
+                {
+                    usleep(1000);
+                    continue;
+                }
+                return EERROR(strerror(errno));
+            }
+            
+            to_write -= r;
+            position += r;
+        }
+        
+        return ESUCCESS;
     }
 }

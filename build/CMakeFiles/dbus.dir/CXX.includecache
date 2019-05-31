@@ -1,0 +1,32 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/leduc/Documents/projets/dbus/DBusError.h
+cstdint
+-
+string
+-
+
+/home/leduc/Documents/projets/dbus/DBusMessage.cpp
+iostream
+-
+DBusMessage.h
+/home/leduc/Documents/projets/dbus/DBusMessage.h
+
+/home/leduc/Documents/projets/dbus/DBusMessage.h
+variant
+-
+vector
+-
+DBusError.h
+/home/leduc/Documents/projets/dbus/DBusError.h
+DBusMessage.tpp
+/home/leduc/Documents/projets/dbus/DBusMessage.tpp
+
+/home/leduc/Documents/projets/dbus/DBusMessage.tpp
+

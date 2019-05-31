@@ -1,0 +1,22 @@
+[
+{
+  "directory": "/home/leduc/Documents/projets/dbus/build",
+  "command": "/usr/bin/c++    -g   -std=gnu++17 -o CMakeFiles/dbus.dir/DBusError.cpp.o -c /home/leduc/Documents/projets/dbus/DBusError.cpp",
+  "file": "/home/leduc/Documents/projets/dbus/DBusError.cpp"
+},
+{
+  "directory": "/home/leduc/Documents/projets/dbus/build",
+  "command": "/usr/bin/c++    -g   -std=gnu++17 -o CMakeFiles/dbus.dir/DBusConnection.cpp.o -c /home/leduc/Documents/projets/dbus/DBusConnection.cpp",
+  "file": "/home/leduc/Documents/projets/dbus/DBusConnection.cpp"
+},
+{
+  "directory": "/home/leduc/Documents/projets/dbus/build",
+  "command": "/usr/bin/c++    -g   -std=gnu++17 -o CMakeFiles/dbus.dir/DBusMessage.cpp.o -c /home/leduc/Documents/projets/dbus/DBusMessage.cpp",
+  "file": "/home/leduc/Documents/projets/dbus/DBusMessage.cpp"
+},
+{
+  "directory": "/home/leduc/Documents/projets/dbus/build",
+  "command": "/usr/bin/c++    -g   -std=gnu++17 -o CMakeFiles/dbus.dir/main.cpp.o -c /home/leduc/Documents/projets/dbus/main.cpp",
+  "file": "/home/leduc/Documents/projets/dbus/main.cpp"
+}
+]

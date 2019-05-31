@@ -28,8 +28,8 @@
 #ifndef DBUS_ERROR_H
 #define DBUS_ERROR_H
 
-#include <string>
 #include <cstdint>
+#include <string>
 
 namespace dbus
 {

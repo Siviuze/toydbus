@@ -31,7 +31,7 @@
 // C++
 #include <chrono>
 
-#include "DBusError.h"
+#include "DBusMessage.h"
 
 namespace dbus
 {
@@ -48,13 +48,19 @@ namespace dbus
         };
         
         DBusError connect(BUS_TYPE bus);
+        DBusError send(DBusMessage&& msg);
+        DBusError recv(DBusMessage& msg, milliseconds timeout);
         
     private:
         DBusError initSocket(BUS_TYPE bus);
         DBusError readAuth(std::string& reply, milliseconds timeout);
         DBusError writeAuthRequest(std::string const& request);
         
+        DBusError readData(void* data, uint32_t data_size, milliseconds timeout);
+        DBusError writeData(void const* data, uint32_t data_size, milliseconds timeout);
+        
         int fd_;
+        std::string name_; // our unique name on the bus.
     };
 }
 
