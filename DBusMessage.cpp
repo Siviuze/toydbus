@@ -1,3 +1,8 @@
+#include <sstream>
+#include <iomanip>
+
+#include <iostream> // debug
+
 #include "DBusMessage.h"
 
 namespace dbus
@@ -19,6 +24,57 @@ namespace dbus
         }};
         
         return serial();
+    }
+    
+    
+    std::string DBusMessage::dump() const
+    {
+        std::string dump;
+        std::stringstream ss;
+        
+        ss << "----- Header -----" << std::endl;
+        ss << "Endianess: " << static_cast<char>(header_.endianness) << std::endl;
+        ss << "Type: ";
+        switch (header_.type)
+        {
+            case MESSAGE_TYPE::METHOD_CALL:   { ss << "method_call";   break; }
+            case MESSAGE_TYPE::ERROR:         { ss << "error";         break; }
+            case MESSAGE_TYPE::METHOD_RETURN: { ss << "method_return"; break; }
+            case MESSAGE_TYPE::SIGNAL:        { ss << "signal";        break; }
+            case MESSAGE_TYPE::INVALID:
+            default:
+            {
+                ss << "invalid";
+            }
+        }
+        ss << std::endl;
+        ss << "Flags:       " << (uint32_t)header_.flags << std::endl;
+        ss << "Version:     " << (uint32_t)header_.version << std::endl;
+        ss << "Size:        " << header_.size << std::endl;
+        ss << "Serial:      " << header_.serial << std::endl;
+        ss << "Fields size: " << header_.fields_size << std::endl;
+        
+        for (auto& f : fields_.value)
+        {
+            ss << str(f.first) << ": ";
+            std::visit(overload
+            {
+                [&](auto const& arg)        { ss << arg; },
+                [&](ObjectPath const& arg)  { ss << arg.value; },
+                [&](Signature const& arg)   { ss << arg.value; },
+            }, f.second.value);
+            ss << std::endl;
+        }
+        
+        ss << "----- Body -----" << std::endl;
+        // old school dump 
+        ss << std::hex << std::setfill('0');
+        for (auto i : body_)
+        {
+            ss << (uint32_t)i; //static_cast<int32_t>(i);
+        }
+        
+        return ss.str();
     }
     
     
@@ -254,6 +310,31 @@ namespace dbus
     {
         signature_ += DBUS_TYPE::VARIANT;
         insertValue(DBUS_TYPE::VARIANT, &arg, body_);
+    }
+    
+    template<>
+    DBusError DBusMessage::extractArgument(std::string& arg)
+    {
+        DBUS_TYPE next_entry_type = static_cast<DBUS_TYPE>(signature_.value[signPos_]);
+        if (next_entry_type != DBUS_TYPE::STRING)
+        {
+            return EERROR("Wrong signature: expected 's', got '" + str(next_entry_type) + "'");
+        }
+        
+        // string aligned on 4 bytes
+        if (bodyPos_ % 4)
+        {
+            bodyPos_ += 4 - (bodyPos_ % 4);
+        }
+        
+        uint32_t str_size = *reinterpret_cast<uint32_t*>(body_.data() + bodyPos_);
+        bodyPos_ += 4;
+        
+        arg.clear();
+        arg.insert(arg.begin(), body_.data() + bodyPos_, body_.data() + bodyPos_ + str_size);
+        bodyPos_ += str_size;
+        
+        return ESUCCESS;
     }
     
     /*

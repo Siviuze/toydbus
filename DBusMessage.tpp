@@ -17,4 +17,7 @@ namespace dbus
     
     // containers types
     template<> void DBusMessage::addArgument<Variant>(Variant const& arg);
+    
+    
+    template<> DBusError DBusMessage::extractArgument(std::string& arg);
 }
