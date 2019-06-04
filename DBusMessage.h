@@ -55,7 +55,8 @@ namespace dbus
         STRUCT_BEGIN  ='(',
         STRUCT_END    =')',
         DICT_BEGIN    ='{',
-        DICT_END      ='}'
+        DICT_END      ='}',
+        UNKNOWN
     };
 
 
@@ -85,7 +86,19 @@ namespace dbus
 
     struct Signature
     {
-        Signature(std::string const& signature) : value(signature) { };
+        //Signature(std::string const& signature) : value(signature) { };
+        Signature() = default;
+        Signature(DBUS_TYPE type) : value()
+        {
+            value += static_cast<char>(type);
+        }
+        
+        Signature& operator+=(DBUS_TYPE type)
+        {
+            value += static_cast<char>(type);
+            return *this;
+        }
+        
         std::string value;
     };
 
@@ -97,9 +110,12 @@ namespace dbus
     };
     
     
+    // overload pattern.
+    template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
+    template<class... Ts> overload(Ts...) -> overload<Ts...>;
     struct Variant
     {
-        std::variant<uint8_t, bool, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, double, std::string, ObjectPath> value;
+        std::variant<uint8_t, bool, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, double, std::string, ObjectPath, Signature> value;
     };
     
     enum class FIELD : uint8_t
@@ -129,6 +145,7 @@ namespace dbus
     } __attribute__ ((packed));
     typedef Dict<FIELD, Variant> HeaderFields;
     
+    
     class DBusConnection;
     class DBusMessage
     {
@@ -149,20 +166,18 @@ namespace dbus
         uint32_t serial() const { return header_.serial; }
         
     private:
+        void serialize();
         void updatePadding(int32_t padding_size, std::vector<uint8_t>& buffer);
-        void insertPOD(void const* data, uint32_t data_size);
-        void insertVariant(DBUS_TYPE type, void const* data, uint32_t data_size);
+        void insertValue(DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer);
         
-        void insertBasic(DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer);
+        static uint32_t serialCounter_;
         
         struct Header header_;
         HeaderFields fields_;
-        std::string signature_;       // DBus call signature.
+        Signature signature_;       // DBus call signature.
         
-        std::vector<uint8_t> body_;   // DBus message body buffer.
-        uint32_t bodyIndex_;
-        
-        static uint32_t serialCounter_;
+        std::vector<uint8_t> headerBuffer_;  // DBus message header buffer.
+        std::vector<uint8_t> body_;          // DBus message body buffer.        
     };
 }
 

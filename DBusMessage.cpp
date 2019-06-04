@@ -51,17 +51,51 @@ namespace dbus
     }
     
     
-    void DBusMessage::updatePadding(int32_t padding_size, std::vector<uint8_t>& buffer)
+    void DBusMessage::serialize()
     {
-        if (buffer.size() % padding_size)                                // is padding needed ?
+        if (not body_.empty())
         {
-            int padding = padding_size - buffer.size() % padding_size;   // compute padding
-            buffer.resize(buffer.size() + padding);                      // add padding
+            // add signature to header fields.
+            Variant v;
+            v.value = signature_;
+            fields_.value.emplace_back(FIELD::SIGNATURE, v);
         }
+        
+        std::vector<uint8_t> fields;
+        for (auto& i : fields_.value)
+        {
+            updatePadding(8, fields);                           // dict entry aligned on 8 bytes.
+            insertValue(DBUS_TYPE::BYTE, &i.first, fields);     // key.
+            insertValue(DBUS_TYPE::VARIANT, &i.second, fields); // value.
+        }
+        
+        // Update header with sizes.
+        header_.size = body_.size();
+        header_.fields_size = fields.size();
+        
+        // serialize all data
+        headerBuffer_.clear();
+        headerBuffer_.reserve(sizeof(struct Header) + header_.size + header_.fields_size);
+        
+        // insert header
+        uint8_t const* header_ptr = reinterpret_cast<uint8_t const*>(&header_); 
+        headerBuffer_.insert(headerBuffer_.begin(), header_ptr, header_ptr+sizeof(struct Header));
+        headerBuffer_.insert(headerBuffer_.end(), fields.begin(), fields.end());
+        updatePadding(8, headerBuffer_); // header size shall be a multiple of 8.
     }
     
     
-    void DBusMessage::insertBasic(DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer)
+    void DBusMessage::updatePadding(int32_t padding_size, std::vector<uint8_t>& buffer)
+    {
+        if (buffer.size() % padding_size)                                  // is padding needed ?
+        {
+            int32_t padding = padding_size - buffer.size() % padding_size; // compute padding
+            buffer.resize(buffer.size() + padding);                        // add padding
+        }
+    }
+    
+
+    void DBusMessage::insertValue(DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer)
     {
         uint8_t const* ptr = reinterpret_cast<uint8_t const*>(data);
         uint32_t data_size = 0;
@@ -97,204 +131,169 @@ namespace dbus
             case DBUS_TYPE::SIGNATURE:
             {
                 std::string const* str = reinterpret_cast<std::string const*>(data);
-                if (type == DBUS_TYPE::SIGNATURE)
+                if (type == DBUS_TYPE::SIGNATURE) // signature have a size of one byte only.
                 {
                     uint8_t str_size = str->size();
-                    insertBasic(DBUS_TYPE::BYTE, &str_size, buffer);
+                    insertValue(DBUS_TYPE::BYTE, &str_size, buffer);
                 }
                 else
                 {
                     uint32_t str_size = str->size();
-                    insertBasic(DBUS_TYPE::UINT32, &str_size, buffer);
+                    insertValue(DBUS_TYPE::UINT32, &str_size, buffer);
                 }
 
-                // Insert stirng + trailing null
+                // Insert string + trailing null
                 buffer.insert(buffer.end(), str->begin(), str->end());
                 buffer.push_back('\0');
                 return; // string inserted, do not insert the object directly.
+            }
+            case DBUS_TYPE::VARIANT:
+            {
+                auto insertVariant = [this](DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer)
+                {
+                    Signature s(type);
+                    insertValue(DBUS_TYPE::SIGNATURE, &s, buffer);
+                    insertValue(type, data, buffer);
+                };
+                
+                Variant const* v = reinterpret_cast<Variant const*>(data);
+                std::visit(overload
+                {
+                    [&](auto arg)               { std::abort(); }, // should'nt be possible
+                    [&](uint8_t arg)            { insertVariant(DBUS_TYPE::BYTE,      &arg, buffer); },
+                    [&](bool arg)               { insertVariant(DBUS_TYPE::BOOLEAN,   &arg, buffer); },
+                    [&](int16_t arg)            { insertVariant(DBUS_TYPE::INT16,     &arg, buffer); },
+                    [&](uint16_t arg)           { insertVariant(DBUS_TYPE::UINT16,    &arg, buffer); },
+                    [&](int32_t arg)            { insertVariant(DBUS_TYPE::INT32,     &arg, buffer); },
+                    [&](uint32_t arg)           { insertVariant(DBUS_TYPE::UINT32,    &arg, buffer); },
+                    [&](int64_t arg)            { insertVariant(DBUS_TYPE::INT64,     &arg, buffer); },
+                    [&](uint64_t arg)           { insertVariant(DBUS_TYPE::UINT64,    &arg, buffer); },
+                    [&](double arg)             { insertVariant(DBUS_TYPE::DOUBLE,    &arg, buffer); },
+                    [&](std::string const& arg) { insertVariant(DBUS_TYPE::STRING,    &arg, buffer); },
+                    [&](ObjectPath const& arg)  { insertVariant(DBUS_TYPE::PATH,      &arg.value, buffer); },
+                    [&](Signature const& arg)   { insertVariant(DBUS_TYPE::SIGNATURE, &arg.value, buffer); },
+                }, v->value);
+                
+                return; // variant inserted, do not insert the object directly.
             }
         }
         
         updatePadding(data_size, buffer);
         buffer.insert(buffer.end(), ptr, ptr + data_size);
     }
-    
-    
-    void DBusMessage::insertVariant(DBUS_TYPE type, void const* data, uint32_t data_size)
-    {
-        body_.push_back(1);
-        body_.push_back(static_cast<char>(type));
-        body_.push_back('\0');
-        
-        insertBasic(data, data_size);
-    }
+
     
     
     template<> 
     void DBusMessage::addArgument<int16_t>(int16_t const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::INT16);
-        insertBasic(DBUS_TYPE::INT16, &arg, body_);
+        signature_ += DBUS_TYPE::INT16;
+        insertValue(DBUS_TYPE::INT16, &arg, body_);
     }
     
     template<> 
     void DBusMessage::addArgument<uint16_t>(uint16_t const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::UINT16);
-        insertBasic(DBUS_TYPE::UINT16, &arg, body_);
+        signature_ += DBUS_TYPE::UINT16;
+        insertValue(DBUS_TYPE::UINT16, &arg, body_);
     }
     
     template<> 
     void DBusMessage::addArgument<int32_t>(int32_t const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::INT32);
-        insertBasic(DBUS_TYPE::INT32, &arg, body_);
+        signature_ += DBUS_TYPE::INT32;
+        insertValue(DBUS_TYPE::INT32, &arg, body_);
     }
     
     template<>
     void DBusMessage::addArgument<uint32_t>(uint32_t const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::UINT32);
-        insertBasic(DBUS_TYPE::UINT32, &arg, body_);
+        signature_ += DBUS_TYPE::UINT32;
+        insertValue(DBUS_TYPE::UINT32, &arg, body_);
     }
     
     template<> 
     void DBusMessage::addArgument<int64_t>(int64_t const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::INT64);
-        insertBasic(DBUS_TYPE::INT64, &arg, body_);
+        signature_ += DBUS_TYPE::INT64;
+        insertValue(DBUS_TYPE::INT64, &arg, body_);
     }
     
     template<> 
     void DBusMessage::addArgument<uint64_t>(uint64_t const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::UINT64);
-        insertBasic(DBUS_TYPE::UINT64, &arg, body_);
+        signature_ += DBUS_TYPE::UINT64;
+        insertValue(DBUS_TYPE::UINT64, &arg, body_);
     }
     
     template<>
     void DBusMessage::addArgument<bool>(bool const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::BOOLEAN);
+        signature_ += DBUS_TYPE::BOOLEAN;
         uint32_t dbus_bool = arg;
-        insertBasic(DBUS_TYPE::BOOLEAN, &dbus_bool, body_);
+        insertValue(DBUS_TYPE::BOOLEAN, &dbus_bool, body_);
     }
     
     template<> 
     void DBusMessage::addArgument<uint8_t>(uint8_t const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::BYTE);
-        insertBasic(DBUS_TYPE::BYTE, &arg, body_);
+        signature_ += DBUS_TYPE::BYTE;
+        insertValue(DBUS_TYPE::BYTE, &arg, body_);
     }
     
     
     template<>
     void DBusMessage::addArgument(std::string const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::STRING);
-        insertBasic(DBUS_TYPE::STRING, &arg, body_);
+        signature_ += DBUS_TYPE::STRING;
+        insertValue(DBUS_TYPE::STRING, &arg, body_);
     }
         
     
     template<>
     void DBusMessage::addArgument(ObjectPath const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::PATH);
-        insertBasic(DBUS_TYPE::PATH, &arg.value, body_);
+        signature_ += DBUS_TYPE::PATH;
+        insertValue(DBUS_TYPE::PATH, &arg.value, body_);
     }
         
     
     template<>
     void DBusMessage::addArgument(Signature const& arg)
     {
-        signature_ += static_cast<char>(DBUS_TYPE::SIGNATURE);
-        insertBasic(DBUS_TYPE::SIGNATURE, &arg.value, body_);
+        signature_ += DBUS_TYPE::SIGNATURE;
+        insertValue(DBUS_TYPE::SIGNATURE, &arg.value, body_);
     }
     
     
     template<>
     void DBusMessage::addArgument(Variant const& arg)
     {
-        auto insert = [](DBUS_TYPE type, void const* data, uint32_t data_size, std::vector<uint8_t>& buffer)
-        {
-            // Insert variant value signature.
-            buffer.push_back(1);
-            buffer.push_back(static_cast<char>(type));
-            buffer.push_back('\0');
-            
-            // Insert value
-            
-        }
-        
+        signature_ += DBUS_TYPE::VARIANT;
+        insertValue(DBUS_TYPE::VARIANT, &arg, body_);
+    }
+    
+    
+    template<> 
+    void DBusMessage::addArgument(Dict<FIELD, Variant> const& arg)
+    {
+        /*
+        signature_ += static_cast<char>(DBUS_TYPE::ARRAY);
+        signature_ += static_cast<char>(DBUS_TYPE::DICT_BEGIN);
+        signature_ += static_cast<char>(DBUS_TYPE::BYTE);
         signature_ += static_cast<char>(DBUS_TYPE::VARIANT);
-        switch (arg.value.index())
+        signature_ += static_cast<char>(DBUS_TYPE::DICT_END);
+        */ // No signature since it is specific to the header
+        
+        for (auto& i : arg.value)
         {
-            case 0:
-            {
-                insertVariant(DBUS_TYPE::BYTE, &std::get<uint8_t>(arg.value), sizeof(uint8_t));
-                break;                
-            }
-            case 1:
-            {
-                uint32_t dbus_bool = std::get<bool>(arg.value);
-                insertVariant(DBUS_TYPE::BOOLEAN, &dbus_bool, sizeof(uint32_t));
-                break;                
-            }
-            case 2:
-            {
-                insertVariant(DBUS_TYPE::INT16, &std::get<int16_t>(arg.value), sizeof(int16_t));
-                break;                
-            }
-            case 3:
-            {
-                insertVariant(DBUS_TYPE::UINT16, &std::get<uint16_t>(arg.value), sizeof(uint16_t));
-                break;                
-            }
-            case 4:
-            {
-                insertVariant(DBUS_TYPE::INT32, &std::get<int32_t>(arg.value), sizeof(int32_t));
-                break;                
-            }
-            case 5:
-            {
-                insertVariant(DBUS_TYPE::UINT32, &std::get<uint32_t>(arg.value), sizeof(uint32_t));
-                break;                
-            }
-            case 6:
-            {
-                insertVariant(DBUS_TYPE::INT64, &std::get<int64_t>(arg.value), sizeof(int64_t));
-                break;                
-            }
-            case 7:
-            {
-                insertVariant(DBUS_TYPE::UINT64, &std::get<uint64_t>(arg.value), sizeof(uint64_t));
-                break;                
-            }
-            case 8:
-            {
-                insertVariant(DBUS_TYPE::DOUBLE, &std::get<double>(arg.value), sizeof(double));
-                break;                
-            }
-            case 9:
-            {
-                //string
-                std::string const& str = std::get<std::string>(arg.value);
-                uint32_t str_size = str.size();
-                insertVariant(DBUS_TYPE::STRING, &str_size, sizeof(uint32_t)); // string start with a uint32_t for the size.
-                body_.insert(body_.end(), str.begin(), str.end());
-                body_.push_back('\0');
-                break;
-            }
-            case 10:
-            {    
-                // path
-                std::string const& str = std::get<ObjectPath>(arg.value).value;
-                uint32_t str_size = str.size();
-                insertVariant(DBUS_TYPE::PATH,  &str_size, sizeof(uint32_t)); // path ar string like type.
-                body_.insert(body_.end(), str.begin(), str.end());
-                body_.push_back('\0');
-                break;
-            }
+            updatePadding(8, body_); // dict entry aligned on 8 bytes.
+            
+            // insert key
+            insertValue(DBUS_TYPE::BYTE, &i.first, body_);
+            
+            // insert value
+            insertValue(DBUS_TYPE::VARIANT, &i.second, body_);
         }
     }
 }

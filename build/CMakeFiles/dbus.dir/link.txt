@@ -1,1 +1,0 @@
-/usr/bin/c++  -g  -rdynamic CMakeFiles/dbus.dir/DBusError.cpp.o CMakeFiles/dbus.dir/DBusConnection.cpp.o CMakeFiles/dbus.dir/DBusMessage.cpp.o CMakeFiles/dbus.dir/main.cpp.o  -o dbus 

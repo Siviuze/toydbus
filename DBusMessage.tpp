@@ -17,4 +17,5 @@ namespace dbus
     
     // containers types
     template<> void DBusMessage::addArgument<Variant>(Variant const& arg);
+    template<> void DBusMessage::addArgument<Dict<FIELD, Variant>>(Dict<FIELD, Variant> const& arg);
 }

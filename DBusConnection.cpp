@@ -36,6 +36,7 @@
 #include <unistd.h>
 
 #include "DBusConnection.h"
+#include <iomanip>
 
 
 namespace dbus
@@ -151,7 +152,8 @@ namespace dbus
         {
             return err;
         }
-        err = recv(uniqueName, 2000ms);
+        
+        err = recv(uniqueName, 100ms);
         return err;
     }
     
@@ -166,8 +168,9 @@ namespace dbus
         }
         
         // Next read header fields.
-        std::vector<uint8_t> msgFields(msg.header_.fields_size);
-        err = readData(msgFields.data(), msgFields.size(), timeout);
+        std::vector<uint8_t> fields;
+        fields.resize(msg.header_.fields_size);
+        err = readData(fields.data(), fields.size(), timeout);
         if (err)
         {
             return err;
@@ -194,23 +197,19 @@ namespace dbus
             msg.fields_.value.push_back({FIELD::SENDER, {name_}});
         }
         
-        std::vector<uint8_t> fieldsBuffer;
-        fieldsBuffer.reserve(4096);
-        //TODO serialize fields
+        msg.serialize();
+        for (int i=0; i<msg.headerBuffer_.size(); ++i)
+        {
+            if ((i%16) == 0)
+            {
+                printf("\n");
+            }
+            printf("0x%02x ", msg.headerBuffer_[i]);
+        }   
         
-        // Update header sizes.
-        msg.header_.size = msg.body_.size();
-        msg.header_.fields_size = fieldsBuffer.size();
-        
-        // serialize header
-        std::vector<uint8_t> headerBuffer;
-        headerBuffer.reserve(4096);
-        uint8_t const* header_ptr = reinterpret_cast<uint8_t const*>(&msg.header_); 
-        headerBuffer.insert(headerBuffer.begin(), header_ptr, header_ptr+sizeof(struct Header));
-        headerBuffer.insert(headerBuffer.end(), fieldsBuffer.begin(), fieldsBuffer.end());
         
         // Send message.
-        return writeData(headerBuffer.data(), headerBuffer.size(), 100ms);
+        return writeData(msg.headerBuffer_.data(), msg.headerBuffer_.size(), 100ms);
     }
     
     
