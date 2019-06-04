@@ -31,11 +31,7 @@ namespace dbus
         DICT_END      ='}',
         UNKNOWN
     };
-    inline std::string str(DBUS_TYPE type)
-    {
-        std::string str(1, static_cast<char>(type));
-        return str;
-    }
+    std::string str(DBUS_TYPE type);
 
 
     enum class MESSAGE_TYPE : uint8_t
@@ -46,6 +42,7 @@ namespace dbus
         ERROR         = 3, 
         SIGNAL        = 4
     };
+    std::string str(MESSAGE_TYPE endianness);
 
 
     enum class ENDIANNESS : uint8_t
@@ -53,64 +50,8 @@ namespace dbus
         LITTLE ='l',
         BIG    ='B'
     };
-
-
-    struct ObjectPath
-    {
-        ObjectPath() = default;
-        ObjectPath(std::string const& path) : value(path) { };
-        std::string value;
-    };
-
-
-    struct Signature
-    {
-        //Signature(std::string const& signature) : value(signature) { };
-        Signature() = default;
-        Signature(DBUS_TYPE type) : value()
-        {
-            value += static_cast<char>(type);
-        }
-        
-        Signature& operator+=(DBUS_TYPE type)
-        {
-            value += static_cast<char>(type);
-            return *this;
-        }
-        
-        bool operator==(DBUS_TYPE type)
-        {
-            return (*this == Signature(type));
-        }
-        
-        bool operator!=(DBUS_TYPE type)
-        {
-            return not (*this == Signature(type));
-        }
-        
-        bool operator==(Signature const& other)
-        {
-            return (value == other.value);
-        }
-        
-        std::string value;
-    };
-
+    std::string str(ENDIANNESS endianness);
     
-    template<typename K, typename V>
-    struct Dict
-    {
-        std::vector<std::pair<K, V>> value;
-    };
-    
-    
-    // overload pattern.
-    template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
-    template<class... Ts> overload(Ts...) -> overload<Ts...>;
-    struct Variant
-    {
-        std::variant<uint8_t, bool, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, double, std::string, ObjectPath, Signature> value;
-    };
     
     enum class FIELD : uint8_t
     {
@@ -125,22 +66,49 @@ namespace dbus
         SIGNATURE    = 8,
         UNIX_FDS     = 9
     };
-    inline std::string str(FIELD type)
+    std::string str(FIELD type);
+
+
+    struct ObjectPath : public std::string 
+    { };
+    
+    struct Signature : public std::string
     {
-        switch (type)
-        {
-            case FIELD::PATH:         { return "Path";         }
-            case FIELD::INTERFACE:    { return "Interface";    }
-            case FIELD::MEMBER:       { return "Member";       }
-            case FIELD::ERROR_NAME:   { return "Error name";   }
-            case FIELD::REPLY_SERIAL: { return "Reply serial"; }
-            case FIELD::DESTINATION:  { return "Destination";  }
-            case FIELD::SENDER:       { return "Sender";       }
-            case FIELD::SIGNATURE:    { return "Signature";    }
-            case FIELD::UNIX_FDS:     { return "UNIX FDS";     }
-            default:
-            case FIELD::INVALID:      { return "Invalid";      }
-        }
+        using std::string::operator+=;
+        
+        Signature& operator+=(DBUS_TYPE type);
+        bool operator==(DBUS_TYPE type);
+        bool operator!=(DBUS_TYPE type);
+    };
+
+    template<typename K, typename V>
+    struct Dict : public std::vector<std::pair<K, V>> 
+    { };
+    
+    // overload pattern.
+    template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
+    template<class... Ts> overload(Ts...) -> overload<Ts...>;
+    using Variant = std::variant<uint8_t, bool, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, double, std::string, ObjectPath, Signature>;
+    
+    
+    // Get DBus type from C++ type.
+    template<typename T>
+    constexpr DBUS_TYPE dbusType() 
+    {
+        if(std::is_same<T, uint8_t>::value)     { return DBUS_TYPE::BYTE;      }
+        if(std::is_same<T, bool>::value)        { return DBUS_TYPE::BOOLEAN;   }
+        if(std::is_same<T, int16_t>::value)     { return DBUS_TYPE::INT16;     }
+        if(std::is_same<T, uint16_t>::value)    { return DBUS_TYPE::UINT16;    }
+        if(std::is_same<T, int32_t>::value)     { return DBUS_TYPE::INT32;     }
+        if(std::is_same<T, uint32_t>::value)    { return DBUS_TYPE::UINT32;    }
+        if(std::is_same<T, int64_t>::value)     { return DBUS_TYPE::INT64;     }
+        if(std::is_same<T, uint64_t>::value)    { return DBUS_TYPE::UINT64;    }
+        if(std::is_same<T, std::string>::value) { return DBUS_TYPE::STRING;    }
+        if(std::is_same<T, ObjectPath>::value)  { return DBUS_TYPE::PATH;      }
+        if(std::is_same<T, Signature>::value)   { return DBUS_TYPE::SIGNATURE; }
+        if(std::is_same<T, Variant>::value)     { return DBUS_TYPE::VARIANT;   }
+
+        return DBUS_TYPE::UNKNOWN;
     }
     
     
@@ -154,7 +122,7 @@ namespace dbus
         uint32_t serial{1};
         uint32_t fields_size;
     } __attribute__ ((packed));
-    typedef Dict<FIELD, Variant> HeaderFields;
+    using HeaderFields = Dict<FIELD, Variant>;
 }
 
 #endif

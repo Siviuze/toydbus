@@ -192,7 +192,7 @@ namespace dbus
             
             fpos += 1;
             Signature s;
-            s.value.insert(s.value.begin(), fields.data() + fpos, fields.data() + fpos + signature_size);
+            s.insert(s.begin(), fields.data() + fpos, fields.data() + fpos + signature_size);
             fpos += signature_size + 1; // +1 for trailing null
             
             // extract value
@@ -206,43 +206,43 @@ namespace dbus
                 {
                     if (s != DBUS_TYPE::STRING)
                     {
-                        return EERROR("Wrong signature: should be 's', got '" + s.value + "'.");
+                        return EERROR("Wrong signature: should be 's', got '" + s + "'.");
                     }
                     uint32_t str_size = *reinterpret_cast<uint32_t*>(fields.data() + fpos);
                     fpos += 4;
                     std::string str;
                     str.insert(str.begin(), fields.data() + fpos, fields.data() + fpos + str_size);
                     fpos += str_size + 1;
-                    msg.fields_.value.push_back({f, {str}});
+                    msg.fields_.push_back({f, {str}});
                     break;
                 }
                 case FIELD::SIGNATURE: 
                 {
                     if (s != DBUS_TYPE::SIGNATURE)
                     {
-                        return EERROR("Wrong signature: should be 'g', got '" + s.value + "'.");
+                        return EERROR("Wrong signature: should be 'g', got '" + s + "'.");
                     }
                     uint8_t str_size = *reinterpret_cast<uint8_t*>(fields.data() + fpos);
                     fpos += 1;
                     Signature s;
-                    s.value.insert(s.value.begin(), fields.data() + fpos, fields.data() + fpos + str_size);
+                    s.insert(s.begin(), fields.data() + fpos, fields.data() + fpos + str_size);
                     fpos += str_size + 1;
-                    msg.fields_.value.push_back({f, {s}});
-                    msg.signature_.value = s.value;
+                    msg.fields_.push_back({f, {s}});
+                    msg.signature_ = s;
                     break;
                 }
                 case FIELD::PATH:
                 {
                     if (s != DBUS_TYPE::PATH)
                     {
-                        return EERROR("Wrong signature: should be 'o', got '" + s.value + "'.");
+                        return EERROR("Wrong signature: should be 'o', got '" + s + "'.");
                     }
                     uint32_t str_size = *reinterpret_cast<uint32_t*>(fields.data() + fpos);
                     fpos += 4;
                     ObjectPath path;
-                    path.value.insert(path.value.begin(), fields.data() + fpos, fields.data() + fpos + str_size);
+                    path.insert(path.begin(), fields.data() + fpos, fields.data() + fpos + str_size);
                     fpos += str_size + 1;
-                    msg.fields_.value.push_back({f, {path}});
+                    msg.fields_.push_back({f, {path}});
                     break;
                 }
                 case FIELD::REPLY_SERIAL:
@@ -250,11 +250,11 @@ namespace dbus
                 {
                     if (s != DBUS_TYPE::UINT32)
                     {
-                        return EERROR("Wrong signature: should be 'u', got '" + s.value + "'.");
+                        return EERROR("Wrong signature: should be 'u', got '" + s + "'.");
                     }
                     uint32_t val = *reinterpret_cast<uint32_t*>(fields.data() + fpos);
                     fpos += 4;
-                    msg.fields_.value.push_back({f, {val}});
+                    msg.fields_.push_back({f, {val}});
                     break;
                 }
                 case FIELD::INVALID: 
@@ -280,7 +280,7 @@ namespace dbus
         if (not name_.empty())
         {
             // Add sender filed with our name if we know it (if not, probably the Hello() message).
-            msg.fields_.value.push_back({FIELD::SENDER, {name_}});
+            msg.fields_.push_back({FIELD::SENDER, {name_}});
         }
         
         msg.serialize();
