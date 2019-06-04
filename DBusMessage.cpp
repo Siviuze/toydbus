@@ -1,32 +1,3 @@
-/*
- * Copyright (c) 2019, leduc <philippe.leduc@mailfence.com>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *     * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *     notice, this list of conditions and the following disclaimer in the
- *     documentation and/or other materials provided with the distribution.
- *     * Neither the name of the <organization> nor the
- *     names of its contributors may be used to endorse or promote products
- *     derived from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY leduc <philippe.leduc@mailfence.com> ''AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL leduc <philippe.leduc@mailfence.com> BE LIABLE FOR ANY
- * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
- * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
-#include <iostream>
-
 #include "DBusMessage.h"
 
 namespace dbus
@@ -97,33 +68,39 @@ namespace dbus
 
     void DBusMessage::insertValue(DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer)
     {
-        uint8_t const* ptr = reinterpret_cast<uint8_t const*>(data);
-        uint32_t data_size = 0;
+        auto insertPOD = [this](void const* data, int32_t data_size, std::vector<uint8_t>& buffer)
+        {
+            updatePadding(data_size, buffer);
+            
+            uint8_t const* ptr = reinterpret_cast<uint8_t const*>(data);
+            buffer.insert(buffer.end(), ptr, ptr + data_size);
+        };
+        
         switch (type)
         {
             case DBUS_TYPE::BYTE:
             {
-                data_size = 1;
+                insertPOD(data, 1, buffer);
                 break;
             }
             case DBUS_TYPE::INT16:
             case DBUS_TYPE::UINT16:
             {
-                data_size = 2;
+                insertPOD(data, 2, buffer);
                 break;
             }
             case DBUS_TYPE::BOOLEAN:
             case DBUS_TYPE::UINT32:
             case DBUS_TYPE::INT32:
             {
-                data_size = 4;
+                insertPOD(data, 4, buffer);
                 break;
             }
             case DBUS_TYPE::INT64:
             case DBUS_TYPE::UINT64:
             case DBUS_TYPE::DOUBLE:
             {
-                data_size = 8;
+                insertPOD(data, 8, buffer);
                 break;
             }
             case DBUS_TYPE::STRING:
@@ -176,13 +153,19 @@ namespace dbus
                 
                 return; // variant inserted, do not insert the object directly.
             }
+            case DBUS_TYPE::ARRAY:
+            case DBUS_TYPE::UNIX_FD:
+            case DBUS_TYPE::STRUCT_BEGIN:
+            case DBUS_TYPE::STRUCT_END:
+            case DBUS_TYPE::DICT_BEGIN:
+            case DBUS_TYPE::DICT_END:
+            case DBUS_TYPE::UNKNOWN:
+            {
+                std::abort();
+            }
         }
-        
-        updatePadding(data_size, buffer);
-        buffer.insert(buffer.end(), ptr, ptr + data_size);
     }
 
-    
     
     template<> 
     void DBusMessage::addArgument<int16_t>(int16_t const& arg)
@@ -273,17 +256,15 @@ namespace dbus
         insertValue(DBUS_TYPE::VARIANT, &arg, body_);
     }
     
-    
+    /*
     template<> 
     void DBusMessage::addArgument(Dict<FIELD, Variant> const& arg)
     {
-        /*
         signature_ += static_cast<char>(DBUS_TYPE::ARRAY);
         signature_ += static_cast<char>(DBUS_TYPE::DICT_BEGIN);
         signature_ += static_cast<char>(DBUS_TYPE::BYTE);
         signature_ += static_cast<char>(DBUS_TYPE::VARIANT);
         signature_ += static_cast<char>(DBUS_TYPE::DICT_END);
-        */ // No signature since it is specific to the header
         
         for (auto& i : arg.value)
         {
@@ -296,4 +277,5 @@ namespace dbus
             insertValue(DBUS_TYPE::VARIANT, &i.second, body_);
         }
     }
+    */
 }
