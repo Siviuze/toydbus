@@ -15,7 +15,7 @@ int main(int argc, char **argv)
     DBusError err = bus.connect(DBusConnection::BUS_SYSTEM);
     if (err)
     {
-        std::cout << err.what() << std::endl;
+        err.what();
         return err;
     }
 

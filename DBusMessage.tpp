@@ -17,6 +17,8 @@ namespace dbus
         signature_ += dbusType<V>();
         signature_ += DBUS_TYPE::DICT_END;
         
+        //TODO array size
+        
         for (auto& i : arg.value)
         {
             updatePadding(8, body_); // dict entry aligned on 8 bytes.
@@ -44,8 +46,29 @@ namespace dbus
     
     
     template<typename K, typename V> 
-    DBusError DBusMessage::extractArgument(Dict<K, V> const& arg)
+    DBusError DBusMessage::extractArgument(Dict<K, V>& arg)
     {
-    return EERROR("Not implemented");
+        uint32_t array_size;
+        DBusError err =  extractArgument(DBUS_TYPE::UINT32, &array_size);
+        if (err)
+        {
+            return err;
+        }
+        
+        uint32_t const start_pos = body_pos_;
+        while (body_pos_ < (array_size + start_pos))
+        {
+            align(body_pos_, 8); // dict entries are aligned on 8 bytes.
+            
+            K key;
+            extractArgument(dbusType<K>(), &key);
+            
+            V value;
+            extractArgument(dbusType<K>(), &value);
+            
+            arg.push_back({key, value});
+        }
+        
+        return err;
     }
 }

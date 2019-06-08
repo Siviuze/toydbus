@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace dbus
 {
@@ -25,16 +26,16 @@ namespace dbus
                   std::string const& function, 
                   std::string const& file, 
                   int32_t line);
+        
+        DBusError& operator+=(DBusError&& other);
 
         operator bool() const { return isError_; }
-        std::string what() const;
+        void what() const;
         
     private:
         bool isError_{false};
-        std::string error_;
-        std::string function_;
-        std::string file_;
-        int32_t line_;
+        std::string what_{"success"};
+        std::vector<std::string> backtrace_;
     };
 }
 

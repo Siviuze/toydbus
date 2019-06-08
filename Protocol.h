@@ -29,7 +29,7 @@ namespace dbus
         STRUCT_END    =')',
         DICT_BEGIN    ='{',
         DICT_END      ='}',
-        UNKNOWN
+        UNKNOWN       ='~'
     };
     std::string str(DBUS_TYPE type);
 
@@ -95,6 +95,7 @@ namespace dbus
     template<typename T>
     constexpr DBUS_TYPE dbusType() 
     {
+        if(std::is_same<T, FIELD>::value)       { return DBUS_TYPE::BYTE;      }
         if(std::is_same<T, uint8_t>::value)     { return DBUS_TYPE::BYTE;      }
         if(std::is_same<T, bool>::value)        { return DBUS_TYPE::BOOLEAN;   }
         if(std::is_same<T, int16_t>::value)     { return DBUS_TYPE::INT16;     }
@@ -120,7 +121,6 @@ namespace dbus
         uint8_t version{1};
         uint32_t size;
         uint32_t serial{1};
-        uint32_t fields_size;
     } __attribute__ ((packed));
     using HeaderFields = Dict<FIELD, Variant>;
 }

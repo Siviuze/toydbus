@@ -12,7 +12,7 @@ namespace dbus
     
     uint32_t DBusMessage::prepareCall(const std::string& name, const std::string& path, const std::string& interface, const std::string& method)
     {
-        header_ = {ENDIANNESS::LITTLE, MESSAGE_TYPE::METHOD_CALL, 0, 1, 0, serialCounter_, 0};
+        header_ = {ENDIANNESS::LITTLE, MESSAGE_TYPE::METHOD_CALL, 0, 1, 0, serialCounter_};
         serialCounter_++;
       
         fields_ = 
@@ -39,7 +39,6 @@ namespace dbus
         ss << "Version:     " << (uint32_t)header_.version << std::endl;
         ss << "Size:        " << header_.size << std::endl;
         ss << "Serial:      " << header_.serial << std::endl;
-        ss << "Fields size: " << header_.fields_size << std::endl;
         
         for (auto& f : fields_)
         {
@@ -52,9 +51,26 @@ namespace dbus
             }, f.second);
             ss << std::endl;
         }
+        ss << std::endl;
         
-        ss << "----- Body -----" << std::endl;
-        ss << std::hex << std::setfill('0');
+        ss << "---- header hex ----" << std::endl;
+        for (uint32_t i = 0; i < headerBuffer_.size(); ++i)
+        {
+            if ((i % 16) == 0)
+            {
+                ss << std::endl << std::setfill('0') << std::setw(2) << std::hex << i;
+                ss << ':';
+            }
+            if ((i % 8) == 0)
+            {
+                ss << " ";
+            }
+            ss << std::setfill('0') << std::setw(2) << std::hex << (uint32_t)headerBuffer_[i];
+            ss << " ";
+        }
+        ss << std::endl;
+        
+        ss << "----- Body hex -----" << std::endl;
         for (auto i : body_)
         {
             ss << (uint32_t)i;
@@ -73,26 +89,25 @@ namespace dbus
             fields_.emplace_back(FIELD::SIGNATURE, v);
         }
         
-        std::vector<uint8_t> fields;
-        for (auto& i : fields_)
-        {
-            updatePadding(8, fields);                           // dict entry aligned on 8 bytes.
-            insertValue(DBUS_TYPE::BYTE, &i.first, fields);     // key.
-            insertValue(DBUS_TYPE::VARIANT, &i.second, fields); // value.
-        }
-        
-        // Update header with sizes.
-        header_.size = body_.size();
-        header_.fields_size = fields.size();
-        
-        // serialize all data
+        // prepare buffer.
         headerBuffer_.clear();
-        headerBuffer_.reserve(sizeof(struct Header) + header_.size + header_.fields_size);
+        headerBuffer_.reserve(sizeof(struct Header) + header_.size + 256); // 256: preallocate memory for fields even if we dont know the finale size yet.
         
         // insert header
+        header_.size = body_.size();  // Update header body size.
         uint8_t const* header_ptr = reinterpret_cast<uint8_t const*>(&header_); 
         headerBuffer_.insert(headerBuffer_.begin(), header_ptr, header_ptr+sizeof(struct Header));
-        headerBuffer_.insert(headerBuffer_.end(), fields.begin(), fields.end());
+        
+        // insert fields
+        uint8_t* const fields_size = &headerBuffer_.back() + 1; // WARNING: at this point, this pointer is out of bound!
+        headerBuffer_.resize(headerBuffer_.size() + sizeof(uint32_t));
+        for (auto& i : fields_)
+        {
+            updatePadding(8, headerBuffer_);                           // dict entry aligned on 8 bytes.
+            insertValue(DBUS_TYPE::BYTE, &i.first, headerBuffer_);     // key.
+            insertValue(DBUS_TYPE::VARIANT, &i.second, headerBuffer_); // value.
+        }
+        *reinterpret_cast<uint32_t*>(fields_size) = &headerBuffer_.back() - fields_size; // compute size
         updatePadding(8, headerBuffer_); // header size shall be a multiple of 8.
     }
     
@@ -103,6 +118,15 @@ namespace dbus
         {
             int32_t padding = padding_size - buffer.size() % padding_size; // compute padding
             buffer.resize(buffer.size() + padding);                        // add padding
+        }
+    }
+    
+    
+    void DBusMessage::align(uint32_t& position, uint32_t alignment)
+    {
+        if (position % alignment)
+        {
+            position += alignment - (position % alignment);
         }
     }
     
@@ -223,14 +247,6 @@ namespace dbus
     
     DBusError DBusMessage::extractArgument(DBUS_TYPE type, void* data)
     {
-        auto align = [](uint32_t& pos, uint32_t alignment)
-        {
-            if (pos % alignment)
-            {
-                pos += alignment - (pos % alignment);
-            }
-        };
-        
         switch (type)
         {
             case DBUS_TYPE::BYTE: 
@@ -317,6 +333,7 @@ namespace dbus
                     case DBUS_TYPE::UINT32:  { break; }
                     case DBUS_TYPE::INT64:   { break; }
                     case DBUS_TYPE::UINT64:  { break; }
+                    default : { return EERROR("Unsupported type " + str(type)); break; }
                 }
                 
                 break;
@@ -329,14 +346,4 @@ namespace dbus
         
         return ESUCCESS;
     }
-    
-    
-    
-    /*
-    template<> 
-    void DBusMessage::addArgument(Dict<FIELD, Variant> const& arg)
-    {
-
-    }
-    */
 }

@@ -1,24 +1,31 @@
 #include "DBusError.h"
 
+#include <iostream>
+
 namespace dbus
 {
     DBusError::DBusError(std::string const& message, 
                          std::string const& function, 
                          std::string const& file, 
                          int32_t line)
-        : isError_(true)
-        , error_(message)
-        , function_(function)
-        , file_(file)
-        , line_(line)
+        : isError_{true}
+        , what_{function + ": " + message + " (" + file + ":" + std::to_string(line) + ")"}
     { }
     
-    std::string DBusError::what() const
+    
+    void DBusError::what() const
     {
-        if (not isError_)
+        std::cout << what_ << std::endl;
+        for (auto b : backtrace_)
         {
-            return "success";
+            std::cout << " from: " << b << std::endl;
         }
-        return function_ + ": " + error_ + " (" + file_ + ":" + std::to_string(line_) + ")";
-    }  
+    }
+    
+    
+    DBusError& DBusError::operator+=(DBusError&& other)
+    {
+        backtrace_.emplace_back(std::move(other.what_));
+        return *this;
+    }
 }

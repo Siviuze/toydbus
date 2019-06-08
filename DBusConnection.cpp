@@ -45,6 +45,7 @@ namespace dbus
         err = readAuth(reply, 2000ms);
         if (err)
         {
+            err += EERROR("");
             return err;
         }
         
@@ -81,6 +82,7 @@ namespace dbus
         err = writeAuthRequest(ss.str());
         if (err)
         {
+            err += EERROR("");
             return err;
         }
         
@@ -95,12 +97,14 @@ namespace dbus
         err = writeAuthRequest(auth::NEGOCIATE);
         if (err)
         {
+            err += EERROR("");
             return err;
         }
 
         err = readAuth(reply, 2000ms);
         if (err)
         {
+            err += EERROR("");
             return err;
         }
         std::cout << reply << std::endl;
@@ -109,6 +113,7 @@ namespace dbus
         err = writeAuthRequest(auth::BEGIN);
         if (err)
         {
+            err += EERROR("");
             return err;
         }
         
@@ -123,20 +128,27 @@ namespace dbus
         err = send(std::move(hello));
         if (err)
         {
+            err += EERROR("");
             return err;
         }
         
         err = recv(uniqueName, 100ms);
         if (err)
         {
+            err += EERROR("");
             return err;
         }
         std::cout << uniqueName.dump() << std::endl;
         
         std::string myName;
         err = uniqueName.extractArgument(myName);
+        if (err)
+        {
+            err += EERROR("");
+            return err;
+        }
         std::cout << myName << std::endl;
-        return err;
+        return ESUCCESS;
     }
     
     
@@ -149,19 +161,28 @@ namespace dbus
             return err;
         }
         
-        // Next read header fields.        
-        std::vector<uint8_t> fields;
-        fields.resize(msg.header_.fields_size);
-        err = readData(fields.data(), fields.size(), timeout);
+        // Next read header fields.       
+        msg.body_.resize(sizeof(uint32_t));
+        err = readData(msg.body_.data(), sizeof(uint32_t), timeout); // read fields size
         if (err)
         {
             return err;
         }
         
+        uint32_t fields_size = *reinterpret_cast<uint32_t*>(msg.body_.data());
+        msg.body_.resize(fields_size + sizeof(uint32_t));
+        err = readData(msg.body_.data() + sizeof(uint32_t), msg.body_.size() - sizeof(uint32_t), timeout);
+        if (err)
+        {
+            return err;
+        }
+        printf("header size: %d %d\n", fields_size, msg.body_.size());
+        
         // Read padding.
-        uint32_t padding_size = 8 - (msg.header_.fields_size % 8);
+        uint32_t padding_size = 8 - (fields_size % 8);
         if (padding_size > 0)
         {
+            printf("not here\n");
             std::vector<uint8_t> padding;
             padding.resize(padding_size);
             err = readData(padding.data(), padding.size(), timeout);
@@ -171,14 +192,12 @@ namespace dbus
             }
         }
 
-        // Read message body. 
-        msg.body_.resize(msg.header_.size);
-        err = readData(msg.body_.data(), msg.body_.size(), timeout);
+        err = msg.extractArgument(msg.fields_);
         if (err)
         {
             return err;
         }
-        
+        /*
         // Parse header fields.
         uint32_t fpos = 0;
         while (fpos < fields.size())
@@ -270,8 +289,12 @@ namespace dbus
                 fpos += (8 - fpos % 8);
             }
         }
+        */
         
-        return ESUCCESS;
+        // Read message body. 
+        msg.body_.clear();
+        msg.body_.resize(msg.header_.size);
+        return readData(msg.body_.data(), msg.body_.size(), timeout);
     }
     
     
@@ -284,6 +307,7 @@ namespace dbus
         }
         
         msg.serialize();
+        std::cout << msg.dump() << std::endl;
 
         // Send message.
         return writeData(msg.headerBuffer_.data(), msg.headerBuffer_.size(), 100ms);

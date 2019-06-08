@@ -27,7 +27,7 @@ namespace dbus
         DBusError extractArgument(T& arg);
         
         template<typename K, typename V> 
-        DBusError extractArgument(Dict<K, V> const& arg);
+        DBusError extractArgument(Dict<K, V>& arg);
         
         uint32_t serial() const { return header_.serial; }
         std::string dump() const;
@@ -35,6 +35,7 @@ namespace dbus
     private:
         void serialize();
         void updatePadding(int32_t padding_size, std::vector<uint8_t>& buffer);
+        void align (uint32_t& position, uint32_t alignement);
         
         void insertValue(DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer);
         DBusError extractArgument(DBUS_TYPE type, void* data);
