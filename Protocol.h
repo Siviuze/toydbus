@@ -5,6 +5,7 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <unordered_map>
 
 namespace dbus
 {
@@ -82,7 +83,7 @@ namespace dbus
     };
 
     template<typename K, typename V>
-    struct Dict : public std::vector<std::pair<K, V>> 
+    struct Dict : public std::unordered_map<K, V> 
     { };
     
     // overload pattern.

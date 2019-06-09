@@ -17,7 +17,9 @@ namespace dbus
         signature_ += dbusType<V>();
         signature_ += DBUS_TYPE::DICT_END;
         
-        //TODO array size
+        // array size.
+        uint8_t* const array_size = &body_.back() + 1; // WARNING: at this point, this pointer is out of bound!
+        body_.resize(body_.size() + sizeof(uint32_t));
         
         for (auto& i : arg.value)
         {
@@ -29,6 +31,8 @@ namespace dbus
             // insert value
             insertValue(dbusType<V>(), &i.second, body_);
         }
+        
+        *reinterpret_cast<uint32_t*>(array_size) = &body_.back() - (array_size + 3); // Update size.
     }
     
     
@@ -64,9 +68,9 @@ namespace dbus
             extractArgument(dbusType<K>(), &key);
             
             V value;
-            extractArgument(dbusType<K>(), &value);
+            extractArgument(dbusType<V>(), &value);
             
-            arg.push_back({key, value});
+            arg.emplace(key, value);
         }
         
         return err;

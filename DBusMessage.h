@@ -3,6 +3,7 @@
 
 #include "Protocol.h"
 #include "DBusError.h"
+#include "helpers.h"
 
 namespace dbus
 {
@@ -34,8 +35,6 @@ namespace dbus
         
     private:
         void serialize();
-        void updatePadding(int32_t padding_size, std::vector<uint8_t>& buffer);
-        void align (uint32_t& position, uint32_t alignement);
         
         void insertValue(DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer);
         DBusError extractArgument(DBUS_TYPE type, void* data);

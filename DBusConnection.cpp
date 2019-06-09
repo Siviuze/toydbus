@@ -8,8 +8,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include "helpers.h"
 #include "DBusConnection.h"
-#include <iomanip>
 
 
 namespace dbus
@@ -139,7 +139,6 @@ namespace dbus
             return err;
         }
         std::cout << uniqueName.dump() << std::endl;
-        
         std::string myName;
         err = uniqueName.extractArgument(myName);
         if (err)
@@ -155,41 +154,30 @@ namespace dbus
     DBusError DBusConnection::recv(DBusMessage& msg, milliseconds timeout)
     {
         // Start with fixed length header part.
-        DBusError err = readData(&msg.header_, sizeof(struct Header), timeout);
+        msg.body_.resize(sizeof(struct Header));
+        DBusError err = readData(msg.body_.data(), sizeof(struct Header), timeout);
         if (err)
         {
             return err;
         }
+        std::memcpy(&msg.header_, msg.body_.data(), sizeof(struct Header));
+        msg.body_pos_ = msg.body_.size();
         
         // Next read header fields.       
-        msg.body_.resize(sizeof(uint32_t));
-        err = readData(msg.body_.data(), sizeof(uint32_t), timeout); // read fields size
+        msg.body_.resize(msg.body_.size() + sizeof(uint32_t));
+        err = readData(msg.body_.data() + msg.body_pos_, sizeof(uint32_t), timeout); // read fields size
         if (err)
         {
             return err;
         }
         
-        uint32_t fields_size = *reinterpret_cast<uint32_t*>(msg.body_.data());
-        msg.body_.resize(fields_size + sizeof(uint32_t));
-        err = readData(msg.body_.data() + sizeof(uint32_t), msg.body_.size() - sizeof(uint32_t), timeout);
+        uint32_t fields_size = *reinterpret_cast<uint32_t*>(msg.body_.data() + msg.body_pos_);
+        msg.body_.resize(msg.body_.size() + fields_size);
+        err = readData(msg.body_.data() + msg.body_pos_ + sizeof(uint32_t), fields_size, timeout);
         if (err)
         {
+            err += EERROR("");
             return err;
-        }
-        printf("header size: %d %d\n", fields_size, msg.body_.size());
-        
-        // Read padding.
-        uint32_t padding_size = 8 - (fields_size % 8);
-        if (padding_size > 0)
-        {
-            printf("not here\n");
-            std::vector<uint8_t> padding;
-            padding.resize(padding_size);
-            err = readData(padding.data(), padding.size(), timeout);
-            if (err)
-            {
-                return err;
-            }
         }
 
         err = msg.extractArgument(msg.fields_);
@@ -197,99 +185,22 @@ namespace dbus
         {
             return err;
         }
-        /*
-        // Parse header fields.
-        uint32_t fpos = 0;
-        while (fpos < fields.size())
+        
+        // copy signature to internal field.
+        msg.signature_ = std::get<Signature>(msg.fields_[FIELD::SIGNATURE]);
+
+        // Read header padding.
+        uint8_t header_padding[7]; // at most 7 bytes of padding.
+        uint32_t padding_size = msg.body_.size() % 8;
+        if (padding_size)
         {
-            // extract field type
-            FIELD f = static_cast<FIELD>(fields[fpos]);
-            
-            // extract signature
-            fpos += 1;
-            uint8_t signature_size = fields[fpos];
-            
-            fpos += 1;
-            Signature s;
-            s.insert(s.begin(), fields.data() + fpos, fields.data() + fpos + signature_size);
-            fpos += signature_size + 1; // +1 for trailing null
-            
-            // extract value
-            switch (f)
+            err = readData(header_padding, 8 - padding_size, timeout);
+            if (err)
             {
-                case FIELD::ERROR_NAME:
-                case FIELD::DESTINATION: 
-                case FIELD::MEMBER:
-                case FIELD::SENDER:
-                case FIELD::INTERFACE:
-                {
-                    if (s != DBUS_TYPE::STRING)
-                    {
-                        return EERROR("Wrong signature: should be 's', got '" + s + "'.");
-                    }
-                    uint32_t str_size = *reinterpret_cast<uint32_t*>(fields.data() + fpos);
-                    fpos += 4;
-                    std::string str;
-                    str.insert(str.begin(), fields.data() + fpos, fields.data() + fpos + str_size);
-                    fpos += str_size + 1;
-                    msg.fields_.push_back({f, {str}});
-                    break;
-                }
-                case FIELD::SIGNATURE: 
-                {
-                    if (s != DBUS_TYPE::SIGNATURE)
-                    {
-                        return EERROR("Wrong signature: should be 'g', got '" + s + "'.");
-                    }
-                    uint8_t str_size = *reinterpret_cast<uint8_t*>(fields.data() + fpos);
-                    fpos += 1;
-                    Signature s;
-                    s.insert(s.begin(), fields.data() + fpos, fields.data() + fpos + str_size);
-                    fpos += str_size + 1;
-                    msg.fields_.push_back({f, {s}});
-                    msg.signature_ = s;
-                    break;
-                }
-                case FIELD::PATH:
-                {
-                    if (s != DBUS_TYPE::PATH)
-                    {
-                        return EERROR("Wrong signature: should be 'o', got '" + s + "'.");
-                    }
-                    uint32_t str_size = *reinterpret_cast<uint32_t*>(fields.data() + fpos);
-                    fpos += 4;
-                    ObjectPath path;
-                    path.insert(path.begin(), fields.data() + fpos, fields.data() + fpos + str_size);
-                    fpos += str_size + 1;
-                    msg.fields_.push_back({f, {path}});
-                    break;
-                }
-                case FIELD::REPLY_SERIAL:
-                case FIELD::UNIX_FDS: 
-                {
-                    if (s != DBUS_TYPE::UINT32)
-                    {
-                        return EERROR("Wrong signature: should be 'u', got '" + s + "'.");
-                    }
-                    uint32_t val = *reinterpret_cast<uint32_t*>(fields.data() + fpos);
-                    fpos += 4;
-                    msg.fields_.push_back({f, {val}});
-                    break;
-                }
-                case FIELD::INVALID: 
-                default: 
-                {
-                    return EERROR("Invalid field type.");
-                }
-            }
-            
-            // each entry aligned on 8 bytes.
-            if (fpos % 8)
-            {
-                fpos += (8 - fpos % 8);
+                err += EERROR("");
+                return err;
             }
         }
-        */
         
         // Read message body. 
         msg.body_.clear();
@@ -303,11 +214,10 @@ namespace dbus
         if (not name_.empty())
         {
             // Add sender filed with our name if we know it (if not, probably the Hello() message).
-            msg.fields_.push_back({FIELD::SENDER, {name_}});
+            msg.fields_.emplace(FIELD::SENDER, name_);
         }
         
         msg.serialize();
-        std::cout << msg.dump() << std::endl;
 
         // Send message.
         return writeData(msg.headerBuffer_.data(), msg.headerBuffer_.size(), 100ms);

@@ -1,8 +1,6 @@
-#include <sstream>
-#include <iomanip>
-
 #include <iostream> // debug
 
+#include "helpers.h"
 #include "DBusMessage.h"
 
 namespace dbus
@@ -54,27 +52,10 @@ namespace dbus
         ss << std::endl;
         
         ss << "---- header hex ----" << std::endl;
-        for (uint32_t i = 0; i < headerBuffer_.size(); ++i)
-        {
-            if ((i % 16) == 0)
-            {
-                ss << std::endl << std::setfill('0') << std::setw(2) << std::hex << i;
-                ss << ':';
-            }
-            if ((i % 8) == 0)
-            {
-                ss << " ";
-            }
-            ss << std::setfill('0') << std::setw(2) << std::hex << (uint32_t)headerBuffer_[i];
-            ss << " ";
-        }
-        ss << std::endl;
+        ss << hexDump(headerBuffer_);
         
         ss << "----- Body hex -----" << std::endl;
-        for (auto i : body_)
-        {
-            ss << (uint32_t)i;
-        }
+        ss << hexDump(body_);
         
         return ss.str();
     }
@@ -86,7 +67,7 @@ namespace dbus
         {
             // add signature to header fields.
             Variant v{signature_};
-            fields_.emplace_back(FIELD::SIGNATURE, v);
+            fields_.emplace(FIELD::SIGNATURE, v);
         }
         
         // prepare buffer.
@@ -107,27 +88,8 @@ namespace dbus
             insertValue(DBUS_TYPE::BYTE, &i.first, headerBuffer_);     // key.
             insertValue(DBUS_TYPE::VARIANT, &i.second, headerBuffer_); // value.
         }
-        *reinterpret_cast<uint32_t*>(fields_size) = &headerBuffer_.back() - fields_size; // compute size
+        *reinterpret_cast<uint32_t*>(fields_size) = &headerBuffer_.back() - (fields_size + 3); // compute size
         updatePadding(8, headerBuffer_); // header size shall be a multiple of 8.
-    }
-    
-    
-    void DBusMessage::updatePadding(int32_t padding_size, std::vector<uint8_t>& buffer)
-    {
-        if (buffer.size() % padding_size)                                  // is padding needed ?
-        {
-            int32_t padding = padding_size - buffer.size() % padding_size; // compute padding
-            buffer.resize(buffer.size() + padding);                        // add padding
-        }
-    }
-    
-    
-    void DBusMessage::align(uint32_t& position, uint32_t alignment)
-    {
-        if (position % alignment)
-        {
-            position += alignment - (position % alignment);
-        }
     }
     
 
@@ -309,7 +271,7 @@ namespace dbus
                 
                 std::string* arg = reinterpret_cast<std::string*>(data);
                 arg->insert(arg->begin(), body_.data() + body_pos_, body_.data() + body_pos_ + str_size);
-                body_pos_ += str_size;
+                body_pos_ += str_size + 1; // trailing nul.
                 break;
             }
             case DBUS_TYPE::VARIANT: 
@@ -323,20 +285,87 @@ namespace dbus
                 }
                 
                 DBUS_TYPE variant_type = static_cast<DBUS_TYPE>(s[0]);
+                
+                DBusError err;
                 switch (variant_type)
                 {
-                    case DBUS_TYPE::BYTE:    { break; }
-                    case DBUS_TYPE::BOOLEAN: { break; }
-                    case DBUS_TYPE::INT16:   { break; }
-                    case DBUS_TYPE::UINT16:  { break; }
-                    case DBUS_TYPE::INT32:   { break; }
-                    case DBUS_TYPE::UINT32:  { break; }
-                    case DBUS_TYPE::INT64:   { break; }
-                    case DBUS_TYPE::UINT64:  { break; }
-                    default : { return EERROR("Unsupported type " + str(type)); break; }
+                    case DBUS_TYPE::BYTE:    
+                    { 
+                        uint8_t val; 
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break;
+                    }
+                    case DBUS_TYPE::BOOLEAN: 
+                    {
+                        bool val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break; 
+                    }
+                    case DBUS_TYPE::INT16:   
+                    { 
+                        int16_t val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break;
+                    }
+                    case DBUS_TYPE::UINT16:  
+                    { 
+                        uint16_t val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break; 
+                    }
+                    case DBUS_TYPE::INT32:   
+                    { 
+                        int32_t val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break;
+                    }
+                    case DBUS_TYPE::UINT32:  
+                    { 
+                        uint32_t val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break;
+                    }
+                    case DBUS_TYPE::INT64:   
+                    { 
+                        int64_t val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break;
+                    }
+                    case DBUS_TYPE::UINT64:  
+                    { 
+                        uint64_t val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break;
+                    }
+                    case DBUS_TYPE::STRING:  
+                    { 
+                        std::string val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break; 
+                    }
+                    case DBUS_TYPE::SIGNATURE:
+                    {
+                        Signature val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break;
+                    }
+                    default: 
+                    { 
+                        return EERROR("Variant: unsupported type " + str(type)); 
+                    }
                 }
                 
-                break;
+                return err;
             }
             default:
             {
