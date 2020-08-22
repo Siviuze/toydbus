@@ -14,41 +14,41 @@ namespace dbus
     public:
         DBusMessage()  = default;
         ~DBusMessage() = default;
-        
+
         // return call serial;
         uint32_t prepareCall(std::string const& name, std::string const& path, std::string const& interface, std::string const& method);
-        
-        template<typename T> 
+
+        template<typename T>
         void addArgument(T const& arg);
-        
-        template<typename K, typename V> 
+
+        template<typename K, typename V>
         void addArgument(Dict<K, V> const& arg);
-        
+
         template<typename T>
         DBusError extractArgument(T& arg);
-        
-        template<typename K, typename V> 
+
+        template<typename K, typename V>
         DBusError extractArgument(Dict<K, V>& arg);
-        
+
         uint32_t serial() const { return header_.serial; }
         std::string dump() const;
-        
+
     private:
         void serialize();
-        
+
         void insertValue(DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer);
         DBusError extractArgument(DBUS_TYPE type, void* data);
         DBusError checkSignature(DBUS_TYPE type);
 
         static uint32_t serialCounter_;
-        
+
         struct Header header_;
         HeaderFields fields_;
         Signature signature_;       // DBus call signature.
-        
+
         std::vector<uint8_t> headerBuffer_;  // DBus message header buffer.
-        std::vector<uint8_t> body_;          // DBus message body buffer.   
-        
+        std::vector<uint8_t> body_;          // DBus message body buffer.
+
         uint32_t sign_pos_{0};
         uint32_t body_pos_{0};
     };

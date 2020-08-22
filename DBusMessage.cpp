@@ -7,29 +7,29 @@ namespace dbus
 {
     // Init serial counter.
     uint32_t DBusMessage::serialCounter_ = 1U;
-    
+
     uint32_t DBusMessage::prepareCall(const std::string& name, const std::string& path, const std::string& interface, const std::string& method)
     {
         header_ = {ENDIANNESS::LITTLE, MESSAGE_TYPE::METHOD_CALL, 0, 1, 0, serialCounter_};
         serialCounter_++;
-      
-        fields_ = 
+
+        fields_ =
         {{
-            {FIELD::DESTINATION, {name}}, 
-            {FIELD::PATH,        {ObjectPath{path}}}, 
-            {FIELD::INTERFACE,   {interface}}, 
+            {FIELD::DESTINATION, {name}},
+            {FIELD::PATH,        {ObjectPath{path}}},
+            {FIELD::INTERFACE,   {interface}},
             {FIELD::MEMBER,      {method}},
         }};
-        
+
         return serial();
     }
-    
-    
+
+
     std::string DBusMessage::dump() const
     {
         std::string dump;
         std::stringstream ss;
-        
+
         ss << "----- Header -----" << std::endl;
         ss << "Endianess:   " << str(header_.endianness) << std::endl;
         ss << "Type:        " << str(header_.type) << std::endl;
@@ -37,7 +37,7 @@ namespace dbus
         ss << "Version:     " << (uint32_t)header_.version << std::endl;
         ss << "Size:        " << header_.size << std::endl;
         ss << "Serial:      " << header_.serial << std::endl;
-        
+
         for (auto& f : fields_)
         {
             ss << str(f.first) << ": ";
@@ -50,17 +50,17 @@ namespace dbus
             ss << std::endl;
         }
         ss << std::endl;
-        
+
         ss << "---- header hex ----" << std::endl;
         ss << hexDump(headerBuffer_);
-        
+
         ss << "----- Body hex -----" << std::endl;
         ss << hexDump(body_);
-        
+
         return ss.str();
     }
-    
-    
+
+
     void DBusMessage::serialize()
     {
         if (not body_.empty())
@@ -69,16 +69,16 @@ namespace dbus
             Variant v{signature_};
             fields_.emplace(FIELD::SIGNATURE, v);
         }
-        
+
         // prepare buffer.
         headerBuffer_.clear();
         headerBuffer_.reserve(sizeof(struct Header) + header_.size + 256); // 256: preallocate memory for fields even if we dont know the finale size yet.
-        
+
         // insert header
         header_.size = body_.size();  // Update header body size.
-        uint8_t const* header_ptr = reinterpret_cast<uint8_t const*>(&header_); 
+        uint8_t const* header_ptr = reinterpret_cast<uint8_t const*>(&header_);
         headerBuffer_.insert(headerBuffer_.begin(), header_ptr, header_ptr+sizeof(struct Header));
-        
+
         // insert fields
         uint8_t* const fields_size = &headerBuffer_.back() + 1; // WARNING: at this point, this pointer is out of bound!
         headerBuffer_.resize(headerBuffer_.size() + sizeof(uint32_t));
@@ -91,18 +91,18 @@ namespace dbus
         *reinterpret_cast<uint32_t*>(fields_size) = &headerBuffer_.back() - (fields_size + 3); // compute size
         updatePadding(8, headerBuffer_); // header size shall be a multiple of 8.
     }
-    
+
 
     void DBusMessage::insertValue(DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer)
     {
         auto insertPOD = [this](void const* data, int32_t data_size, std::vector<uint8_t>& buffer)
         {
             updatePadding(data_size, buffer);
-            
+
             uint8_t const* ptr = reinterpret_cast<uint8_t const*>(data);
             buffer.insert(buffer.end(), ptr, ptr + data_size);
         };
-        
+
         switch (type)
         {
             case DBUS_TYPE::BYTE:
@@ -159,7 +159,7 @@ namespace dbus
                     insertValue(DBUS_TYPE::SIGNATURE, &s, buffer);
                     insertValue(type, data, buffer);
                 };
-                
+
                 Variant const& v = *reinterpret_cast<Variant const*>(data);
                 std::visit(overload
                 {
@@ -177,7 +177,7 @@ namespace dbus
                     [&](ObjectPath const& arg)  { insertVariant(DBUS_TYPE::PATH,      &arg, buffer); },
                     [&](Signature const& arg)   { insertVariant(DBUS_TYPE::SIGNATURE, &arg, buffer); },
                 }, v);
-                
+
                 break;
             }
             case DBUS_TYPE::ARRAY:
@@ -192,33 +192,33 @@ namespace dbus
             }
         }
     }
-    
-    
+
+
     DBusError DBusMessage::checkSignature(DBUS_TYPE type)
     {
         DBUS_TYPE next_entry_type = static_cast<DBUS_TYPE>(signature_[sign_pos_]);
         if (next_entry_type != type)
         {
-            return EERROR("Wrong signature: expected '" + str(type) + "', got '" + str(next_entry_type) + "'");
+            return EERROR("Wrong signature: expected '" + prettyStr(type) + "', got '" + prettyStr(next_entry_type) + "'");
         }
         sign_pos_++;
-        
+
         return ESUCCESS;
     }
-    
-    
+
+
     DBusError DBusMessage::extractArgument(DBUS_TYPE type, void* data)
     {
         switch (type)
         {
-            case DBUS_TYPE::BYTE: 
+            case DBUS_TYPE::BYTE:
             {
                 uint8_t* arg = reinterpret_cast<uint8_t*>(data);
                 *arg = *reinterpret_cast<uint8_t*>(body_.data() + body_pos_);
                 body_pos_ += sizeof(uint8_t);
                 break;
             }
-            case DBUS_TYPE::BOOLEAN: 
+            case DBUS_TYPE::BOOLEAN:
             {
                 bool* arg = reinterpret_cast<bool*>(data);
                 uint32_t dbus_bool;
@@ -226,7 +226,7 @@ namespace dbus
                 *arg = dbus_bool;
                 break;
             }
-            case DBUS_TYPE::INT16: 
+            case DBUS_TYPE::INT16:
             case DBUS_TYPE::UINT16:
             {
                 align(body_pos_, sizeof(uint16_t));
@@ -254,7 +254,7 @@ namespace dbus
                 break;
             }
             case DBUS_TYPE::STRING:
-            case DBUS_TYPE::PATH: 
+            case DBUS_TYPE::PATH:
             case DBUS_TYPE::SIGNATURE:
             {
                 uint32_t str_size;
@@ -268,13 +268,13 @@ namespace dbus
                 {
                     extractArgument(DBUS_TYPE::UINT32, &str_size);
                 }
-                
+
                 std::string* arg = reinterpret_cast<std::string*>(data);
                 arg->insert(arg->begin(), body_.data() + body_pos_, body_.data() + body_pos_ + str_size);
                 body_pos_ += str_size + 1; // trailing nul.
                 break;
             }
-            case DBUS_TYPE::VARIANT: 
+            case DBUS_TYPE::VARIANT:
             {
                 Variant* arg = reinterpret_cast<Variant*>(data);
                 Signature s;
@@ -283,74 +283,74 @@ namespace dbus
                 {
                     return EERROR("Variant signature length shall be 1, got: " + std::to_string(s.size()));
                 }
-                
+
                 DBUS_TYPE variant_type = static_cast<DBUS_TYPE>(s[0]);
-                
+
                 DBusError err;
                 switch (variant_type)
                 {
-                    case DBUS_TYPE::BYTE:    
-                    { 
-                        uint8_t val; 
+                    case DBUS_TYPE::BYTE:
+                    {
+                        uint8_t val;
                         err = extractArgument(variant_type, &val);
                         *arg = val;
                         break;
                     }
-                    case DBUS_TYPE::BOOLEAN: 
+                    case DBUS_TYPE::BOOLEAN:
                     {
                         bool val;
                         err = extractArgument(variant_type, &val);
                         *arg = val;
-                        break; 
+                        break;
                     }
-                    case DBUS_TYPE::INT16:   
-                    { 
+                    case DBUS_TYPE::INT16:
+                    {
                         int16_t val;
                         err = extractArgument(variant_type, &val);
                         *arg = val;
                         break;
                     }
-                    case DBUS_TYPE::UINT16:  
-                    { 
+                    case DBUS_TYPE::UINT16:
+                    {
                         uint16_t val;
                         err = extractArgument(variant_type, &val);
                         *arg = val;
-                        break; 
+                        break;
                     }
-                    case DBUS_TYPE::INT32:   
-                    { 
+                    case DBUS_TYPE::INT32:
+                    {
                         int32_t val;
                         err = extractArgument(variant_type, &val);
                         *arg = val;
                         break;
                     }
-                    case DBUS_TYPE::UINT32:  
-                    { 
+                    case DBUS_TYPE::UINT32:
+                    {
                         uint32_t val;
                         err = extractArgument(variant_type, &val);
                         *arg = val;
                         break;
                     }
-                    case DBUS_TYPE::INT64:   
-                    { 
+                    case DBUS_TYPE::INT64:
+                    {
                         int64_t val;
                         err = extractArgument(variant_type, &val);
                         *arg = val;
                         break;
                     }
-                    case DBUS_TYPE::UINT64:  
-                    { 
+                    case DBUS_TYPE::UINT64:
+                    {
                         uint64_t val;
                         err = extractArgument(variant_type, &val);
                         *arg = val;
                         break;
                     }
-                    case DBUS_TYPE::STRING:  
-                    { 
+                    case DBUS_TYPE::STRING:
+                    {
                         std::string val;
                         err = extractArgument(variant_type, &val);
                         *arg = val;
-                        break; 
+                        break;
                     }
                     case DBUS_TYPE::SIGNATURE:
                     {
@@ -359,20 +359,27 @@ namespace dbus
                         *arg = val;
                         break;
                     }
-                    default: 
-                    { 
-                        return EERROR("Variant: unsupported type " + str(type)); 
+                    case DBUS_TYPE::PATH:
+                    {
+                        ObjectPath val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break;
+                    }
+                    default:
+                    {
+                        return EERROR("Variant: unsupported type '" + prettyStr(variant_type) + "'");
                     }
                 }
-                
+
                 return err;
             }
             default:
             {
-                return EERROR("Unsupported type " + str(type));
+                return EERROR("Unsupported type '" + prettyStr(type) + "'");
             }
         }
-        
+
         return ESUCCESS;
     }
 }

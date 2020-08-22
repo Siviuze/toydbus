@@ -9,30 +9,31 @@
 
 namespace dbus
 {
-    enum class DBUS_TYPE : char 
+    enum class DBUS_TYPE : char
     {
-        ARRAY         ='a',
-        BOOLEAN       ='b',
-        BYTE          ='y',
-        DOUBLE        ='d',
-        INT16         ='n',
-        UINT16        ='q',
-        INT32         ='i',
-        UINT32        ='u',
-        INT64         ='x',
-        UINT64        ='t',
-        PATH          ='o',
-        SIGNATURE     ='g',
-        STRING        ='s',
-        UNIX_FD       ='h',
-        VARIANT       ='v',
-        STRUCT_BEGIN  ='(',
-        STRUCT_END    =')',
-        DICT_BEGIN    ='{',
-        DICT_END      ='}',
-        UNKNOWN       ='~'
+        ARRAY         = 'a',
+        BOOLEAN       = 'b',
+        BYTE          = 'y',
+        DOUBLE        = 'd',
+        INT16         = 'n',
+        UINT16        = 'q',
+        INT32         = 'i',
+        UINT32        = 'u',
+        INT64         = 'x',
+        UINT64        = 't',
+        PATH          = 'o',
+        SIGNATURE     = 'g',
+        STRING        = 's',
+        UNIX_FD       = 'h',
+        VARIANT       = 'v',
+        STRUCT_BEGIN  = '(',
+        STRUCT_END    = ')',
+        DICT_BEGIN    = '{',
+        DICT_END      = '}',
+        UNKNOWN       = '~'
     };
     std::string str(DBUS_TYPE type);
+    std::string prettyStr(DBUS_TYPE type);
 
 
     enum class MESSAGE_TYPE : uint8_t
@@ -40,7 +41,7 @@ namespace dbus
         INVALID       = 0,
         METHOD_CALL   = 1,
         METHOD_RETURN = 2,
-        ERROR         = 3, 
+        ERROR         = 3,
         SIGNAL        = 4
     };
     std::string str(MESSAGE_TYPE endianness);
@@ -52,8 +53,8 @@ namespace dbus
         BIG    ='B'
     };
     std::string str(ENDIANNESS endianness);
-    
-    
+
+
     enum class FIELD : uint8_t
     {
         INVALID      = 0,
@@ -70,31 +71,31 @@ namespace dbus
     std::string str(FIELD type);
 
 
-    struct ObjectPath : public std::string 
+    struct ObjectPath : public std::string
     { };
-    
+
     struct Signature : public std::string
     {
         using std::string::operator+=;
-        
+
         Signature& operator+=(DBUS_TYPE type);
         bool operator==(DBUS_TYPE type);
         bool operator!=(DBUS_TYPE type);
     };
 
     template<typename K, typename V>
-    struct Dict : public std::unordered_map<K, V> 
+    struct Dict : public std::unordered_map<K, V>
     { };
-    
+
     // overload pattern.
     template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
     template<class... Ts> overload(Ts...) -> overload<Ts...>;
     using Variant = std::variant<uint8_t, bool, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, double, std::string, ObjectPath, Signature>;
-    
-    
+
+
     // Get DBus type from C++ type.
     template<typename T>
-    constexpr DBUS_TYPE dbusType() 
+    constexpr DBUS_TYPE dbusType()
     {
         if(std::is_same<T, FIELD>::value)       { return DBUS_TYPE::BYTE;      }
         if(std::is_same<T, uint8_t>::value)     { return DBUS_TYPE::BYTE;      }
@@ -112,8 +113,8 @@ namespace dbus
 
         return DBUS_TYPE::UNKNOWN;
     }
-    
-    
+
+
     struct Header
     {
         ENDIANNESS endianness{ENDIANNESS::LITTLE};

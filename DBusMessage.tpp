@@ -6,8 +6,8 @@ namespace dbus
         signature_ += dbusType<T>();
         insertValue(dbusType<T>(), &arg, body_);
     }
-    
-    
+
+
     template<typename K, typename V>
     void DBusMessage::addArgument(Dict<K, V> const& arg)
     {
@@ -16,26 +16,26 @@ namespace dbus
         signature_ += dbusType<K>();
         signature_ += dbusType<V>();
         signature_ += DBUS_TYPE::DICT_END;
-        
+
         // array size.
         uint8_t* const array_size = &body_.back() + 1; // WARNING: at this point, this pointer is out of bound!
         body_.resize(body_.size() + sizeof(uint32_t));
-        
+
         for (auto& i : arg.value)
         {
             updatePadding(8, body_); // dict entry aligned on 8 bytes.
-            
+
             // insert key
             insertValue(dbusType<K>(), &i.first, body_);
-            
+
             // insert value
             insertValue(dbusType<V>(), &i.second, body_);
         }
-        
+
         *reinterpret_cast<uint32_t*>(array_size) = &body_.back() - (array_size + 3); // Update size.
     }
-    
-    
+
+
     template<typename T>
     DBusError DBusMessage::extractArgument(T& arg)
     {
@@ -47,9 +47,9 @@ namespace dbus
 
         return extractArgument(dbusType<T>(), &arg);
     }
-    
-    
-    template<typename K, typename V> 
+
+
+    template<typename K, typename V>
     DBusError DBusMessage::extractArgument(Dict<K, V>& arg)
     {
         uint32_t array_size;
@@ -58,21 +58,29 @@ namespace dbus
         {
             return err;
         }
-        
+
         uint32_t const start_pos = body_pos_;
         while (body_pos_ < (array_size + start_pos))
         {
             align(body_pos_, 8); // dict entries are aligned on 8 bytes.
-            
+
             K key;
-            extractArgument(dbusType<K>(), &key);
-            
+            err = extractArgument(dbusType<K>(), &key);
+            if (err)
+            {
+                return err;
+            }
+
             V value;
-            extractArgument(dbusType<V>(), &value);
-            
+            err = extractArgument(dbusType<V>(), &value);
+            if (err)
+            {
+                return err;
+            }
+
             arg.emplace(key, value);
         }
-        
+
         return err;
     }
 }
