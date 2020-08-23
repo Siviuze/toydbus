@@ -6,6 +6,7 @@ add_definitions(-Wall -Wextra) # enable common warnings
 
 set (SRCS   "${CMAKE_CURRENT_SOURCE_DIR}/helpers.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/Protocol.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/DBusVariant.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/DBusError.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/DBusConnection.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/DBusMessage.cpp"

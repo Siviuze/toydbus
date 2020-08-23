@@ -8,6 +8,7 @@
 namespace dbus
 {
     class DBusConnection;
+    class DBusVariant;
     class DBusMessage
     {
         friend class DBusConnection;
@@ -30,9 +31,6 @@ namespace dbus
         template<typename K, typename V>
         DBusError extractArgument(Dict<K, V>& arg);
 
-        template<typename T>
-        DBusError extractArgument(std::vector<T>& arg);
-
         uint32_t serial() const { return header_.serial; }
         std::string dump() const;
 
@@ -51,6 +49,8 @@ namespace dbus
 
     private:
         void serialize();
+
+        DBusError extractArray(Signature const& s, int32_t index, DBusVariant& array);
 
         void insertValue(DBUS_TYPE type, void const* data, std::vector<uint8_t>& buffer);
         DBusError extractArgument(DBUS_TYPE type, void* data);

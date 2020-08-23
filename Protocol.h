@@ -9,6 +9,7 @@
 
 namespace dbus
 {
+    class DBusVariant;
     enum class DBUS_TYPE : char
     {
         ARRAY         = 'a',
@@ -112,25 +113,26 @@ namespace dbus
     // overload pattern.
     template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
     template<class... Ts> overload(Ts...) -> overload<Ts...>;
-    using Variant = std::variant<uint8_t, bool, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, double, std::string, ObjectPath, Signature, std::vector<uint8_t>>;
+    using Variant = std::variant<uint8_t, bool, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, double, std::string, ObjectPath, Signature>;
 
     // Get DBus type from C++ type.
     template<typename T>
     constexpr DBUS_TYPE dbusType()
     {
-        if(std::is_same<T, FIELD>::value)       { return DBUS_TYPE::BYTE;      }
-        if(std::is_same<T, uint8_t>::value)     { return DBUS_TYPE::BYTE;      }
-        if(std::is_same<T, bool>::value)        { return DBUS_TYPE::BOOLEAN;   }
-        if(std::is_same<T, int16_t>::value)     { return DBUS_TYPE::INT16;     }
-        if(std::is_same<T, uint16_t>::value)    { return DBUS_TYPE::UINT16;    }
-        if(std::is_same<T, int32_t>::value)     { return DBUS_TYPE::INT32;     }
-        if(std::is_same<T, uint32_t>::value)    { return DBUS_TYPE::UINT32;    }
-        if(std::is_same<T, int64_t>::value)     { return DBUS_TYPE::INT64;     }
-        if(std::is_same<T, uint64_t>::value)    { return DBUS_TYPE::UINT64;    }
-        if(std::is_same<T, std::string>::value) { return DBUS_TYPE::STRING;    }
-        if(std::is_same<T, ObjectPath>::value)  { return DBUS_TYPE::PATH;      }
-        if(std::is_same<T, Signature>::value)   { return DBUS_TYPE::SIGNATURE; }
-        if(std::is_same<T, Variant>::value)     { return DBUS_TYPE::VARIANT;   }
+        if(std::is_same<T, FIELD>::value)                     { return DBUS_TYPE::BYTE;      }
+        if(std::is_same<T, uint8_t>::value)                   { return DBUS_TYPE::BYTE;      }
+        if(std::is_same<T, bool>::value)                      { return DBUS_TYPE::BOOLEAN;   }
+        if(std::is_same<T, int16_t>::value)                   { return DBUS_TYPE::INT16;     }
+        if(std::is_same<T, uint16_t>::value)                  { return DBUS_TYPE::UINT16;    }
+        if(std::is_same<T, int32_t>::value)                   { return DBUS_TYPE::INT32;     }
+        if(std::is_same<T, uint32_t>::value)                  { return DBUS_TYPE::UINT32;    }
+        if(std::is_same<T, int64_t>::value)                   { return DBUS_TYPE::INT64;     }
+        if(std::is_same<T, uint64_t>::value)                  { return DBUS_TYPE::UINT64;    }
+        if(std::is_same<T, std::string>::value)               { return DBUS_TYPE::STRING;    }
+        if(std::is_same<T, ObjectPath>::value)                { return DBUS_TYPE::PATH;      }
+        if(std::is_same<T, Signature>::value)                 { return DBUS_TYPE::SIGNATURE; }
+        if(std::is_same<T, Variant>::value)                   { return DBUS_TYPE::VARIANT;   }
+        if(std::is_same<T, std::vector<DBusVariant>>::value)  { return DBUS_TYPE::ARRAY;     }
 
         return DBUS_TYPE::UNKNOWN;
     }

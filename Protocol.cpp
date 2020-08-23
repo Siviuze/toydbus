@@ -7,6 +7,8 @@ namespace dbus
         std::string str(1, static_cast<char>(type));
         return str;
     }
+
+
     std::string prettyStr(DBUS_TYPE type)
     {
         switch (type)

@@ -1,9 +1,10 @@
 // debug
-#include <iostream> 
+#include <iostream>
 #include <fstream>
 
 #include "helpers.h"
 #include "DBusMessage.h"
+#include "DBusVariant.h"
 
 namespace dbus
 {
@@ -396,6 +397,10 @@ namespace dbus
                     }
                     case DBUS_TYPE::ARRAY:
                     {
+                        DBusVariant array(DBUS_TYPE::ARRAY);
+                        err = extractArray(s, 1, array);
+
+/*
                         DBUS_TYPE array_type = static_cast<DBUS_TYPE>(s[1]);
                         switch (array_type)
                         {
@@ -406,6 +411,7 @@ namespace dbus
                                 *arg = array;
                                 break;
                             }
+
                             default:
                             {
                                 printf("Warning: skip array of type %s at %u (unsupported)\n", str(array_type).c_str(), body_pos_);
@@ -424,6 +430,7 @@ namespace dbus
                                 break;
                             }
                         }
+                        */
                         break;
                     }
                     default:
@@ -441,5 +448,61 @@ namespace dbus
         }
 
         return ESUCCESS;
+    }
+
+
+    DBusError DBusMessage::extractArray(Signature const& s, int32_t index, DBusVariant& array)
+    {
+        std::vector<DBusVariant>& refArray = array.get<std::vector<DBusVariant>>();
+        uint32_t array_size;
+        DBusError err = extractArgument(DBUS_TYPE::UINT32, &array_size);
+        if (err)
+        {
+            return err;
+        }
+
+        uint32_t const endPos = body_pos_ + array_size;
+        DBUS_TYPE array_type = static_cast<DBUS_TYPE>(s[index]);
+
+        while (endPos > body_pos_)
+        {
+            switch (array_type)
+            {
+                case DBUS_TYPE::BYTE:
+                {
+                    uint8_t data;
+                    err = extractArgument(DBUS_TYPE::BYTE, &data);
+                    refArray.push_back(data);
+                    break;
+                }
+                case DBUS_TYPE::STRING:
+                {
+                    std::string data;
+                    err = extractArgument(DBUS_TYPE::STRING, &data);
+                    refArray.push_back(data);
+                    break;
+                }
+                case DBUS_TYPE::ARRAY:
+                {
+                    DBusVariant nextArray(DBUS_TYPE::ARRAY);
+                    err = extractArray(s, index + 1, nextArray);
+                    refArray.push_back(nextArray);
+                    break;
+                }
+                default:
+                {
+                    printf("Warning: skip array of type %s at %u (unsupported)\n", str(array_type).c_str(), body_pos_);
+                    if (DBUS_TYPE::STRUCT_BEGIN == array_type)
+                    {
+                        align(body_pos_, 8);
+                    }
+
+                    body_pos_ += array_size;
+                    break;
+                }
+            }
+        }
+
+        return err;
     }
 }
