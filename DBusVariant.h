@@ -3,6 +3,7 @@
 
 #include "Protocol.h"
 #include <vector>
+#include <iostream>
 
 namespace dbus
 {
@@ -14,6 +15,8 @@ namespace dbus
         ~DBusVariant();
 
         void transform(DBUS_TYPE type);
+        DBUS_TYPE type() const { return type_; }
+        void const* data() const { return storage_; }
 
         // copy
         DBusVariant(DBusVariant const& other);
@@ -67,8 +70,9 @@ namespace dbus
 
         DBUS_TYPE type_{DBUS_TYPE::UNKNOWN};
         void* storage_{nullptr};
-
     };
+
+    std::ostream& operator<<(std::ostream& out, DBusVariant const& v);
 }
 
 

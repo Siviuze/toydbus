@@ -8,7 +8,7 @@ using namespace dbus;
 
 void printObjects(DBusMessage& answer)
 {
-    Dict<ObjectPath, Dict<std::string, Dict<std::string, Variant>>> yolo;
+    Dict<ObjectPath, Dict<std::string, Dict<std::string, DBusVariant>>> yolo;
     DBusError err = answer.extractArgument(yolo);
     if (err)
     {
@@ -24,14 +24,7 @@ void printObjects(DBusMessage& answer)
             for (auto const& var : interface.second)
             {
                 std::stringstream ss;
-                ss << var.first << ": ";
-                std::visit(overload
-                {
-                    [&](auto const& arg)        { ss << arg; },
-                    [&](ObjectPath const& arg)  { ss << arg; },
-                    [&](Signature const& arg)   { ss << arg; },
-                }, var.second);
-
+                ss << var.first << ": " << var.second;
                 std::cout << "\t\t" << ss.str() << std::endl;
             }
         }

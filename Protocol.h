@@ -113,7 +113,6 @@ namespace dbus
     // overload pattern.
     template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
     template<class... Ts> overload(Ts...) -> overload<Ts...>;
-    using Variant = std::variant<uint8_t, bool, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, double, std::string, ObjectPath, Signature>;
 
     // Get DBus type from C++ type.
     template<typename T>
@@ -128,10 +127,11 @@ namespace dbus
         if(std::is_same<T, uint32_t>::value)                  { return DBUS_TYPE::UINT32;    }
         if(std::is_same<T, int64_t>::value)                   { return DBUS_TYPE::INT64;     }
         if(std::is_same<T, uint64_t>::value)                  { return DBUS_TYPE::UINT64;    }
+        if(std::is_same<T, double>::value)                    { return DBUS_TYPE::DOUBLE;    }
         if(std::is_same<T, std::string>::value)               { return DBUS_TYPE::STRING;    }
         if(std::is_same<T, ObjectPath>::value)                { return DBUS_TYPE::PATH;      }
         if(std::is_same<T, Signature>::value)                 { return DBUS_TYPE::SIGNATURE; }
-        if(std::is_same<T, Variant>::value)                   { return DBUS_TYPE::VARIANT;   }
+        if(std::is_same<T, DBusVariant>::value)               { return DBUS_TYPE::VARIANT;   }
         if(std::is_same<T, std::vector<DBusVariant>>::value)  { return DBUS_TYPE::ARRAY;     }
 
         return DBUS_TYPE::UNKNOWN;
@@ -147,13 +147,13 @@ namespace dbus
         uint32_t size;
         uint32_t serial{1};
     } __attribute__ ((packed));
-    using HeaderFields = Dict<FIELD, Variant>;
+    using HeaderFields = Dict<FIELD, DBusVariant>;
 }
 
 // Hash specializations
 namespace std
 {
-    template <> struct hash<dbus::ObjectPath>
+    template<> struct hash<dbus::ObjectPath>
     {
         size_t operator()(const dbus::ObjectPath & path) const
         {

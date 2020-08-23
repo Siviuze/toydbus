@@ -200,7 +200,7 @@ namespace dbus
         }
         else
         {
-            msg.signature_ = std::get<Signature>(signatureIt->second);
+            msg.signature_ = signatureIt->second.get<Signature>();
         }
 
         // Read header padding.
