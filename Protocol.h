@@ -71,27 +71,48 @@ namespace dbus
     std::string str(FIELD type);
 
 
-    struct ObjectPath : public std::string
-    { };
+    class ObjectPath
+    {
+    public:
+        ObjectPath(std::string const& path = "")
+            : data_(path)
+        { }
+
+        std::string const& data() const { return data_; }
+        void setData(std::string const& data) { data_ = data; }
+        void setData(std::string&& data) { data_ = std::move(data); }
+
+    private:
+        std::string data_;
+    };
+    bool operator==(ObjectPath const& lhs, ObjectPath const& rhs);
+    bool operator<(ObjectPath const& lhs, ObjectPath const& rhs);
+    std::ostream& operator<< (std::ostream& out, ObjectPath const& path);
+
 
     struct Signature : public std::string
     {
+        Signature() = default;
+        Signature(Signature const&) = default;
+
+        using std::string::operator=;
         using std::string::operator+=;
 
+        Signature& operator=(Signature const&) = default;
         Signature& operator+=(DBUS_TYPE type);
         bool operator==(DBUS_TYPE type);
         bool operator!=(DBUS_TYPE type);
     };
 
+
     template<typename K, typename V>
-    struct Dict : public std::unordered_map<K, V>
-    { };
+    using Dict = std::unordered_map<K, V>;
+
 
     // overload pattern.
     template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
     template<class... Ts> overload(Ts...) -> overload<Ts...>;
-    using Variant = std::variant<uint8_t, bool, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, double, std::string, ObjectPath, Signature>;
-
+    using Variant = std::variant<uint8_t, bool, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, double, std::string, ObjectPath, Signature, std::vector<uint8_t>>;
 
     // Get DBus type from C++ type.
     template<typename T>
@@ -125,6 +146,18 @@ namespace dbus
         uint32_t serial{1};
     } __attribute__ ((packed));
     using HeaderFields = Dict<FIELD, Variant>;
+}
+
+// Hash specializations
+namespace std
+{
+    template <> struct hash<dbus::ObjectPath>
+    {
+        size_t operator()(const dbus::ObjectPath & path) const
+        {
+            return std::hash<std::string>{}(path.data());
+        }
+    };
 }
 
 #endif

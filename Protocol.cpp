@@ -31,7 +31,7 @@ namespace dbus
             case DBUS_TYPE::DICT_BEGIN:    { return "dict begin";   }
             case DBUS_TYPE::DICT_END:      { return "dict end";     }
             default:
-            case DBUS_TYPE::UNKNOWN:       { return "Unknown";      }
+            case DBUS_TYPE::UNKNOWN:       { return "Unknown (" + str(type) + ")";  }
         }
     }
 
@@ -77,6 +77,24 @@ namespace dbus
             case ENDIANNESS::LITTLE: { return "Little endian"; }
             default:                 { return "unknown";       }
         }
+    }
+
+
+    bool operator==(ObjectPath const& lhs, ObjectPath const& rhs)
+    {
+        return lhs.data() == rhs.data();
+    }
+
+
+    bool operator<(ObjectPath const& lhs, ObjectPath const& rhs)
+    {
+        return lhs.data() < rhs.data();
+    }
+
+
+    std::ostream& operator<< (std::ostream& out, ObjectPath const& path)
+    {
+        return (out << path.data());
     }
 
 

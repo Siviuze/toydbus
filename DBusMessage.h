@@ -30,8 +30,24 @@ namespace dbus
         template<typename K, typename V>
         DBusError extractArgument(Dict<K, V>& arg);
 
+        template<typename T>
+        DBusError extractArgument(std::vector<T>& arg);
+
         uint32_t serial() const { return header_.serial; }
         std::string dump() const;
+
+        // helpers to handle message field.
+        MESSAGE_TYPE type() const { return header_.type; }
+        bool isReply() const      { return header_.type == MESSAGE_TYPE::METHOD_RETURN; }
+        bool isError() const      { return header_.type == MESSAGE_TYPE::ERROR;         }
+        bool isSignal() const     { return header_.type == MESSAGE_TYPE::SIGNAL;        }
+
+        // Optionnal header fields accessors
+        uint32_t replySerial() const            { return std::get<uint32_t>(fields_.at(FIELD::REPLY_SERIAL));  }
+        std::string const& errorMessage() const { return std::get<std::string>(fields_.at(FIELD::ERROR_NAME)); }
+        ObjectPath const& path() const          { return std::get<ObjectPath>(fields_.at(FIELD::PATH));        }
+        std::string const& interface() const    { return std::get<std::string>(fields_.at(FIELD::INTERFACE));  }
+        std::string const& member() const       { return std::get<std::string>(fields_.at(FIELD::MEMBER));      }
 
     private:
         void serialize();

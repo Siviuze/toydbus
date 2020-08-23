@@ -15,13 +15,13 @@ namespace dbus
         std::stringstream ss;
         uint8_t const* raw_buffer = buffer.data();
         uint32_t const size_in_bytes = buffer.size() * sizeof(T);
-        
+
         if (buffer.empty())
         {
             ss << "empty" << std::endl;
             return ss.str();
         }
-        
+
         for (uint32_t i = 0; i < size_in_bytes; ++i)
         {
             if ((i % 16) == 0)
@@ -41,11 +41,13 @@ namespace dbus
             ss << " ";
         }
         ss << std::endl;
-        
+
         return ss.str();
     }
-    
-    
+
+
+    std::ostream& operator<< (std::ostream& out, std::vector<uint8_t> const& array);
+
     void updatePadding(int32_t padding_size, std::vector<uint8_t>& buffer);
     void align (uint32_t& position, uint32_t alignement);
 }

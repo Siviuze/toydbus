@@ -1,4 +1,6 @@
-#include <iostream> // debug
+// debug
+#include <iostream> 
+#include <fstream>
 
 #include "helpers.h"
 #include "DBusMessage.h"
@@ -23,7 +25,6 @@ namespace dbus
 
         return serial();
     }
-
 
     std::string DBusMessage::dump() const
     {
@@ -51,12 +52,17 @@ namespace dbus
         }
         ss << std::endl;
 
-        ss << "---- header hex ----" << std::endl;
+        ss << "---- header hex (send only) ----" << std::endl;
         ss << hexDump(headerBuffer_);
 
-        ss << "----- Body hex -----" << std::endl;
+        ss << "----------- Body hex -----------" << std::endl;
         ss << hexDump(body_);
 
+/*
+        std::ofstream myfile;
+        myfile.open ("body" + std::to_string(header_.serial), std::ios::out | std::ios::binary);
+        myfile.write(reinterpret_cast<const char*>(body_.data()), body_.size());
+*/
         return ss.str();
     }
 
@@ -163,7 +169,7 @@ namespace dbus
                 Variant const& v = *reinterpret_cast<Variant const*>(data);
                 std::visit(overload
                 {
-                    [&](auto arg)               { std::abort(); }, // should'nt be possible
+                    [&](auto)                   { std::abort(); }, // unsupported types
                     [&](uint8_t arg)            { insertVariant(DBUS_TYPE::BYTE,      &arg, buffer); },
                     [&](bool arg)               { insertVariant(DBUS_TYPE::BOOLEAN,   &arg, buffer); },
                     [&](int16_t arg)            { insertVariant(DBUS_TYPE::INT16,     &arg, buffer); },
@@ -253,6 +259,14 @@ namespace dbus
                 body_pos_ += sizeof(uint64_t);
                 break;
             }
+            case DBUS_TYPE::DOUBLE:
+            {
+                align(body_pos_, sizeof(double));
+                double* arg = reinterpret_cast<double*>(data);
+                *arg = *reinterpret_cast<double*>(body_.data() + body_pos_);
+                body_pos_ += sizeof(double);
+                break;
+            }
             case DBUS_TYPE::STRING:
             case DBUS_TYPE::PATH:
             case DBUS_TYPE::SIGNATURE:
@@ -269,8 +283,19 @@ namespace dbus
                     extractArgument(DBUS_TYPE::UINT32, &str_size);
                 }
 
-                std::string* arg = reinterpret_cast<std::string*>(data);
-                arg->insert(arg->begin(), body_.data() + body_pos_, body_.data() + body_pos_ + str_size);
+                std::string dataBody;
+                dataBody.insert(dataBody.begin(), body_.data() + body_pos_, body_.data() + body_pos_ + str_size);
+                if (type == DBUS_TYPE::PATH)
+                {
+                    ObjectPath* arg = reinterpret_cast<ObjectPath*>(data);
+                    arg->setData(std::move(dataBody));
+                }
+                else
+                {
+                    std::string* arg = reinterpret_cast<std::string*>(data);
+                    *arg = std::move(dataBody);
+                }
+
                 body_pos_ += str_size + 1; // trailing nul.
                 break;
             }
@@ -279,10 +304,6 @@ namespace dbus
                 Variant* arg = reinterpret_cast<Variant*>(data);
                 Signature s;
                 extractArgument(DBUS_TYPE::SIGNATURE, &s);
-                if (s.size() != 1)
-                {
-                    return EERROR("Variant signature length shall be 1, got: " + std::to_string(s.size()));
-                }
 
                 DBUS_TYPE variant_type = static_cast<DBUS_TYPE>(s[0]);
 
@@ -345,6 +366,13 @@ namespace dbus
                         *arg = val;
                         break;
                     }
+                    case DBUS_TYPE::DOUBLE:
+                    {
+                        double val;
+                        err = extractArgument(variant_type, &val);
+                        *arg = val;
+                        break;
+                    }
                     case DBUS_TYPE::STRING:
                     {
                         std::string val;
@@ -364,6 +392,38 @@ namespace dbus
                         ObjectPath val;
                         err = extractArgument(variant_type, &val);
                         *arg = val;
+                        break;
+                    }
+                    case DBUS_TYPE::ARRAY:
+                    {
+                        DBUS_TYPE array_type = static_cast<DBUS_TYPE>(s[1]);
+                        switch (array_type)
+                        {
+                            case DBUS_TYPE::BYTE:
+                            {
+                                std::vector<uint8_t> array;
+                                err = extractArgument(array);
+                                *arg = array;
+                                break;
+                            }
+                            default:
+                            {
+                                printf("Warning: skip array of type %s at %u (unsupported)\n", str(array_type).c_str(), body_pos_);
+                                uint32_t array_size;
+                                DBusError err = extractArgument(DBUS_TYPE::UINT32, &array_size);
+                                if (DBUS_TYPE::STRUCT_BEGIN == array_type)
+                                {
+                                    align(body_pos_, 8);
+                                }
+
+                                if (err)
+                                {
+                                    return err;
+                                }
+                                body_pos_ += array_size;
+                                break;
+                            }
+                        }
                         break;
                     }
                     default:

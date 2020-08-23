@@ -53,7 +53,7 @@ namespace dbus
     DBusError DBusMessage::extractArgument(Dict<K, V>& arg)
     {
         uint32_t array_size;
-        DBusError err =  extractArgument(DBUS_TYPE::UINT32, &array_size);
+        DBusError err = extractArgument(DBUS_TYPE::UINT32, &array_size);
         if (err)
         {
             return err;
@@ -72,13 +72,46 @@ namespace dbus
             }
 
             V value;
-            err = extractArgument(dbusType<V>(), &value);
+            constexpr DBUS_TYPE valueType = dbusType<V>();
+            if (valueType == DBUS_TYPE::UNKNOWN)
+            {
+                err = extractArgument(value); // not a basic type
+            }
+            else
+            {
+                err = extractArgument(dbusType<V>(), &value);
+            }
             if (err)
             {
                 return err;
             }
 
             arg.emplace(key, value);
+        }
+
+        return err;
+    }
+
+
+    template<typename T>
+    DBusError DBusMessage::extractArgument(std::vector<T>& arg)
+    {
+        uint32_t array_size;
+        DBusError err = extractArgument(DBUS_TYPE::UINT32, &array_size);
+        if (err)
+        {
+            return err;
+        }
+
+        for (uint32_t i = 0; i < array_size; ++i)
+        {
+            T entry;
+            err = extractArgument(dbusType<T>(), &entry);
+            if (err)
+            {
+                return err;
+            }
+            arg.push_back(entry);
         }
 
         return err;

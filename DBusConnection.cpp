@@ -147,7 +147,7 @@ namespace dbus
             err += EERROR("");
             return err;
         }
-        std::cout << myName << std::endl;
+        std::cout << "My name is " << myName << std::endl;
         return ESUCCESS;
     }
 
@@ -192,7 +192,7 @@ namespace dbus
             return err;
         }
 
-        // copy signature to internal field.
+        // copy signature to internal field if any.
         auto signatureIt = msg.fields_.find(FIELD::SIGNATURE);
         if (signatureIt == msg.fields_.end())
         {
@@ -200,7 +200,7 @@ namespace dbus
         }
         else
         {
-            msg.signature_ = std::get<Signature>(msg.fields_[FIELD::SIGNATURE]);
+            msg.signature_ = std::get<Signature>(signatureIt->second);
         }
 
         // Read header padding.
@@ -217,6 +217,7 @@ namespace dbus
         }
 
         // Read message body.
+        msg.body_pos_ = 0;
         msg.body_.clear();
         msg.body_.resize(msg.header_.size);
         return readData(msg.body_.data(), msg.body_.size(), timeout);
